@@ -1,5 +1,8 @@
 # bitty
 
+[![Package Version](https://img.shields.io/hexpm/v/bitty)](https://hex.pm/packages/bitty)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/bitty/)
+
 A zero-copy binary parser combinator library for Gleam.
 
 ## Installation
