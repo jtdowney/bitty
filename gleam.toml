@@ -1,0 +1,12 @@
+name = "bitty"
+version = "1.0.0"
+description = "Binary parser combinator library for Gleam"
+licences = ["Apache-2.0"]
+repository = { type = "github", user = "jtdowney", repo = "bitty" }
+
+[dependencies]
+gleam_stdlib = ">= 0.44.0 and < 2.0.0"
+
+[dev-dependencies]
+qcheck = ">= 1.0.4 and < 2.0.0"
+unitest = ">= 1.5.0 and < 2.0.0"
