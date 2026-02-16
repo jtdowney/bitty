@@ -248,18 +248,14 @@ pub fn take_while_none_match_test() {
 
 pub fn take_while_all_bytes_satisfy_predicate_pbt_test() {
   let gen =
-    qcheck.generic_list(
-      qcheck.bounded_int(0, 255),
-      qcheck.bounded_int(0, 32),
-    )
+    qcheck.generic_list(qcheck.bounded_int(0, 255), qcheck.bounded_int(0, 32))
   qcheck.run(qcheck.default_config(), gen, fn(bytes) {
     let threshold = 128
     let predicate = fn(byte: BitArray) {
       let assert <<b>> = byte
       b < threshold
     }
-    let input =
-      list.fold(bytes, <<>>, fn(acc, b) { <<acc:bits, b:size(8)>> })
+    let input = list.fold(bytes, <<>>, fn(acc, b) { <<acc:bits, b:size(8)>> })
     let assert Ok(#(result, _)) =
       bitty.run_partial(b.take_while(predicate), on: input)
     assert all_bytes_below(result, threshold) == True

@@ -437,6 +437,41 @@ pub fn delimited_close_failure_propagates_test() {
   let assert Error(_) = bitty.run(parser, on: <<0x28, 0x42, 0xFF>>)
 }
 
+pub fn pair_returns_tuple_test() {
+  let parser = bitty.pair(num.u8(), num.u8())
+  let result = bitty.run(parser, on: <<1, 2>>)
+  assert result == Ok(#(1, 2))
+}
+
+pub fn pair_first_failure_propagates_test() {
+  let parser = bitty.pair(num.u8(), num.u8())
+  let assert Error(_) = bitty.run(parser, on: <<>>)
+}
+
+pub fn pair_second_failure_propagates_test() {
+  let parser = bitty.pair(num.u8(), num.u8())
+  let assert Error(_) = bitty.run(parser, on: <<1>>)
+}
+
+pub fn separated_pair_returns_tuple_test() {
+  let parser =
+    bitty.separated_pair(num.u8(), by: b.tag(<<0x2C>>), then: num.u8())
+  let result = bitty.run(parser, on: <<1, 0x2C, 2>>)
+  assert result == Ok(#(1, 2))
+}
+
+pub fn separated_pair_separator_failure_propagates_test() {
+  let parser =
+    bitty.separated_pair(num.u8(), by: b.tag(<<0x2C>>), then: num.u8())
+  let assert Error(_) = bitty.run(parser, on: <<1, 0xFF, 2>>)
+}
+
+pub fn separated_pair_second_failure_propagates_test() {
+  let parser =
+    bitty.separated_pair(num.u8(), by: b.tag(<<0x2C>>), then: num.u8())
+  let assert Error(_) = bitty.run(parser, on: <<1, 0x2C>>)
+}
+
 pub fn separated_multiple_items_test() {
   let parser = bitty.separated(num.u8(), by: b.tag(<<0x2C>>))
   let result = bitty.run(parser, on: <<1, 0x2C, 2, 0x2C, 3>>)

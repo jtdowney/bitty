@@ -442,6 +442,36 @@ pub fn delimited(
   preceded(open, terminated(parser, close))
 }
 
+/// Run two parsers in sequence and return their results as a tuple.
+///
+/// ```gleam
+/// let parser = bitty.pair(num.u8(), num.u8())
+/// let assert Ok(value) = bitty.run(parser, on: <<1, 2>>)
+/// assert value == #(1, 2)
+/// ```
+pub fn pair(first: Parser(a), second: Parser(b)) -> Parser(#(a, b)) {
+  first |> then(fn(a) { second |> map(fn(b) { #(a, b) }) })
+}
+
+/// Run two parsers separated by a third, discarding the separator's result.
+///
+/// ```gleam
+/// let parser = bitty.separated_pair(
+///   num.u8(),
+///   by: bytes.tag(<<0x2C>>),
+///   then: num.u8(),
+/// )
+/// let assert Ok(value) = bitty.run(parser, on: <<1, 0x2C, 2>>)
+/// assert value == #(1, 2)
+/// ```
+pub fn separated_pair(
+  first: Parser(a),
+  by separator: Parser(b),
+  then second: Parser(c),
+) -> Parser(#(a, c)) {
+  first |> then(fn(a) { preceded(separator, second) |> map(fn(c) { #(a, c) }) })
+}
+
 /// Parse zero or more occurrences of `parser` separated by `separator`.
 /// The separator parser's result is discarded. Returns a list of the
 /// parsed values. Succeeds with an empty list if the first item fails
