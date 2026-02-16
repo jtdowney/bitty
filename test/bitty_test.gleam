@@ -466,6 +466,24 @@ pub fn separated1_multiple_items_test() {
   assert result == Ok([1, 2])
 }
 
+pub fn separated1_single_item_test() {
+  let parser = bitty.separated1(num.u8(), by: b.tag(<<0x2C>>))
+  let result = bitty.run(parser, on: <<0x42>>)
+  assert result == Ok([0x42])
+}
+
+pub fn separated1_trailing_separator_test() {
+  let parser = bitty.separated1(num.u8(), by: b.tag(<<0x2C>>))
+  let result = bitty.run_partial(parser, on: <<1, 0x2C, 2, 0x2C>>)
+  assert result == Ok(#([1, 2], <<0x2C>>))
+}
+
+pub fn separated_trailing_separator_test() {
+  let parser = bitty.separated(num.u8(), by: b.tag(<<0x2C>>))
+  let result = bitty.run_partial(parser, on: <<1, 0x2C, 2, 0x2C>>)
+  assert result == Ok(#([1, 2], <<0x2C>>))
+}
+
 pub fn from_result_with_use_syntax_test() {
   let parser = {
     use raw <- bitty.then(b.take(5))

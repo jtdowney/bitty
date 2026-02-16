@@ -431,6 +431,8 @@ pub fn terminated(parser: Parser(a), suffix: Parser(b)) -> Parser(a) {
 ///   num.u8(),
 ///   bytes.tag(<<0x29>>),
 /// )
+/// let assert Ok(value) = bitty.run(parser, on: <<0x28, 42, 0x29>>)
+/// assert value == 42
 /// ```
 pub fn delimited(
   open: Parser(a),
@@ -445,6 +447,10 @@ pub fn delimited(
 /// parsed values. Succeeds with an empty list if the first item fails
 /// without consuming input.
 ///
+/// A trailing separator (one not followed by a valid item) is left
+/// unconsumed. Compose with `end()` if you need to ensure all input
+/// is consumed.
+///
 /// ```gleam
 /// let parser = bitty.separated(num.u8(), by: bytes.tag(<<0x2C>>))
 /// let assert Ok(values) = bitty.run(parser, on: <<1, 0x2C, 2, 0x2C, 3>>)
@@ -458,10 +464,20 @@ pub fn separated(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a)) 
 }
 
 /// Like `separated`, but requires at least one item.
+///
+/// A trailing separator (one not followed by a valid item) is left
+/// unconsumed. Compose with `end()` if you need to ensure all input
+/// is consumed.
+///
+/// ```gleam
+/// let parser = bitty.separated1(num.u8(), by: bytes.tag(<<0x2C>>))
+/// let assert Ok(values) = bitty.run(parser, on: <<1, 0x2C, 2, 0x2C, 3>>)
+/// assert values == [1, 2, 3]
+/// ```
 pub fn separated1(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a)) {
   parser
   |> then(fn(first) {
-    many(preceded(separator, parser))
+    many(attempt(preceded(separator, parser)))
     |> map(fn(rest) { [first, ..rest] })
   })
 }

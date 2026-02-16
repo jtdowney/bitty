@@ -134,3 +134,135 @@ pub fn tag(expected: BitArray) -> bitty.Parser(Nil) {
     }
   })
 }
+
+/// Parse a single byte that satisfies the given predicate.
+/// The predicate receives a 1-byte `BitArray`.
+/// When byte-aligned, returns a zero-copy slice. When unaligned, the byte
+/// is extracted individually.
+///
+/// ```gleam
+/// let parser = bytes.byte_if(fn(b) { b == <<0xFF>> })
+/// let assert Ok(value) = bitty.run(parser, on: <<0xFF, 0x00>>)
+/// assert value == <<0xFF>>
+/// ```
+pub fn byte_if(predicate: fn(BitArray) -> Bool) -> bitty.Parser(BitArray) {
+  bitty.make_parser(fn(state: bitty.State) {
+    case bitty.read_n_bytes(state, 1) {
+      bitty.Continue(matched, new_state, _) ->
+        case predicate(matched) {
+          True -> bitty.Continue(matched, new_state, True)
+          False -> bitty.stop_expected(state, "matching byte")
+        }
+      bitty.Stop(_, _, _) -> bitty.stop_expected(state, "a byte")
+    }
+  })
+}
+
+/// Consume bytes while the predicate holds.
+/// Returns `<<>>` when zero bytes match.
+/// When byte-aligned, returns a zero-copy slice. When unaligned, bytes are
+/// extracted individually.
+///
+/// ```gleam
+/// let parser = bytes.take_while(fn(b) { b != <<0x00>> })
+/// let assert Ok(value) = bitty.run(parser, on: <<1, 2, 3, 0x00>>)
+/// assert value == <<1, 2, 3>>
+/// ```
+pub fn take_while(predicate: fn(BitArray) -> Bool) -> bitty.Parser(BitArray) {
+  bitty.make_parser(fn(state: bitty.State) {
+    case state.bit_offset == 0 {
+      True -> take_while_loop(state, state.byte_offset, predicate)
+      False -> take_while_unaligned(state, <<>>, predicate)
+    }
+  })
+}
+
+fn take_while_loop(
+  state: bitty.State,
+  start: Int,
+  predicate: fn(BitArray) -> Bool,
+) -> bitty.Step(BitArray) {
+  case bit_array.slice(state.input, state.byte_offset, 1) {
+    Ok(matched) ->
+      case predicate(matched) {
+        True ->
+          take_while_loop(
+            bitty.State(..state, byte_offset: state.byte_offset + 1),
+            start,
+            predicate,
+          )
+        False -> finish_byte_slice(state, start)
+      }
+    _ -> finish_byte_slice(state, start)
+  }
+}
+
+fn finish_byte_slice(state: bitty.State, start: Int) -> bitty.Step(BitArray) {
+  let len = state.byte_offset - start
+  case len {
+    0 -> bitty.Continue(<<>>, state, False)
+    _ ->
+      case bit_array.slice(state.input, start, len) {
+        Ok(bytes) -> bitty.Continue(bytes, state, True)
+        _ -> bitty.stop_expected(state, "valid slice")
+      }
+  }
+}
+
+fn take_while_unaligned(
+  state: bitty.State,
+  acc: BitArray,
+  predicate: fn(BitArray) -> Bool,
+) -> bitty.Step(BitArray) {
+  case bitty.read_n_bytes(state, 1) {
+    bitty.Continue(matched, new_state, _) ->
+      case predicate(matched) {
+        True ->
+          take_while_unaligned(new_state, <<acc:bits, matched:bits>>, predicate)
+        False -> bitty.Continue(acc, state, bit_array.byte_size(acc) > 0)
+      }
+    bitty.Stop(_, _, _) ->
+      bitty.Continue(acc, state, bit_array.byte_size(acc) > 0)
+  }
+}
+
+/// Like `take_while` but requires at least one matching byte.
+/// When byte-aligned, returns a zero-copy slice. When unaligned, bytes are
+/// extracted individually.
+///
+/// ```gleam
+/// let parser = bytes.take_while1(fn(b) { b != <<0x00>> })
+/// let assert Ok(value) = bitty.run(parser, on: <<1, 2, 3, 0x00>>)
+/// assert value == <<1, 2, 3>>
+/// ```
+pub fn take_while1(predicate: fn(BitArray) -> Bool) -> bitty.Parser(BitArray) {
+  bitty.make_parser(fn(state: bitty.State) {
+    case bitty.read_n_bytes(state, 1) {
+      bitty.Continue(matched, new_state, _) ->
+        case predicate(matched) {
+          True ->
+            case state.bit_offset == 0 {
+              True -> take_while_loop(new_state, state.byte_offset, predicate)
+              False -> take_while_unaligned(new_state, matched, predicate)
+            }
+          False -> bitty.stop_expected(state, "at least one matching byte")
+        }
+      bitty.Stop(_, _, _) ->
+        bitty.stop_expected(state, "at least one matching byte")
+    }
+  })
+}
+
+/// Consume bytes until the predicate matches, returning everything before
+/// the matching byte. Returns `<<>>` when zero bytes match.
+/// When byte-aligned, returns a zero-copy slice. When unaligned, bytes are
+/// extracted individually.
+///
+/// ```gleam
+/// let parser = bytes.take_until(fn(b) { b == <<0x00>> })
+/// let assert Ok(value) = bitty.run(parser, on: <<1, 2, 3, 0x00>>)
+/// assert value == <<1, 2, 3>>
+/// ```
+pub fn take_until(predicate: fn(BitArray) -> Bool) -> bitty.Parser(BitArray) {
+  take_while(fn(b) { !predicate(b) })
+}

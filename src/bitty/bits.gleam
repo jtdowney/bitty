@@ -1,5 +1,5 @@
 //// Bit-level parsers for reading individual bits and sub-byte unsigned
-//// integers. Bits are read MSB-first within each byte. Use `align` to
+//// integers. Bits are read MSB-first within each byte. Use `align()` to
 //// return to byte-aligned parsing after bit-level operations.
 
 import bitty
