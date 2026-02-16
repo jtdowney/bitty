@@ -17,6 +17,15 @@ pub fn u8_empty_input_fails_test() {
   let assert Error(_) = result
 }
 
+pub fn byte_returns_single_byte_test() {
+  let result = bitty.run(b.byte(), on: <<0xAB>>)
+  assert result == Ok(<<0xAB>>)
+}
+
+pub fn byte_fails_on_empty_input_test() {
+  let assert Error(_) = bitty.run(b.byte(), on: <<>>)
+}
+
 pub fn take_reads_exact_bytes_test() {
   let result = bitty.run(b.take(3), on: <<1, 2, 3>>)
   assert result == Ok(<<1, 2, 3>>)

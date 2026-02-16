@@ -9,6 +9,16 @@ import gleam/bit_array
 import gleam/bool
 import gleam/int
 
+/// Parse a single byte and return it as a `BitArray`.
+///
+/// ```gleam
+/// let assert Ok(b) = bitty.run(bytes.byte(), on: <<0xFF>>)
+/// assert b == <<0xFF>>
+/// ```
+pub fn byte() -> bitty.Parser(BitArray) {
+  take(bytes: 1)
+}
+
 /// Parse exactly `count` bytes as a `BitArray`.
 /// When byte-aligned, returns a zero-copy slice.
 pub fn take(bytes count: Int) -> bitty.Parser(BitArray) {
