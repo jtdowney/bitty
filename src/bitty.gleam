@@ -493,6 +493,7 @@ pub fn location() -> Parser(Location) {
 /// Skip remaining bits in the current byte to reach the next byte boundary.
 /// If already aligned, this is a no-op. Use after bit-level parsing to
 /// resume byte-aligned operations.
+@deprecated("Use bitty/bits.align instead")
 pub fn align() -> Parser(Nil) {
   Parser(fn(state) {
     case state.bit_offset == 0 {

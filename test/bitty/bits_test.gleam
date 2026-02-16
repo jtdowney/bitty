@@ -60,7 +60,7 @@ pub fn uint_36bits_test() {
 pub fn align_skips_remaining_bits_test() {
   let parser = {
     use val <- bitty.then(bits.uint(3))
-    use _ <- bitty.then(bitty.align())
+    use _ <- bitty.then(bits.align())
     bitty.success(val)
   }
   let result = bitty.run(parser, on: <<0xE0>>)
@@ -70,7 +70,7 @@ pub fn align_skips_remaining_bits_test() {
 pub fn bit_then_byte_after_align_test() {
   let parser = {
     use flag <- bitty.then(bits.bit())
-    use _ <- bitty.then(bitty.align())
+    use _ <- bitty.then(bits.align())
     use byte <- bitty.then(num.u8())
     bitty.success(#(flag, byte))
   }

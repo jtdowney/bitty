@@ -1,7 +1,7 @@
 //// Byte-level parsers for reading, skipping, peeking, and matching raw
 //// bytes. These parsers work at any bit position — when unaligned, bytes
 //// are extracted bit-by-bit. When byte-aligned, zero-copy slicing is used.
-//// After bit-level parsing with `bitty/bits`, call `bitty.align()` before
+//// After bit-level parsing with `bitty/bits`, call `bits.align()` before
 //// resuming byte-aligned operations.
 
 import bitty

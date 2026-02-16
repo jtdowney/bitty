@@ -497,7 +497,7 @@ pub fn from_result_invalid_utf8_fails_test() {
 }
 
 pub fn align_noop_when_already_aligned_test() {
-  let parser = bitty.align()
+  let parser = bits.align()
   let result = bitty.run(parser, on: <<>>)
   assert result == Ok(Nil)
 }

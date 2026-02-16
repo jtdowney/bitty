@@ -1,5 +1,5 @@
 //// Bit-level parsers for reading individual bits and sub-byte unsigned
-//// integers. Bits are read MSB-first within each byte. Use `bitty.align` to
+//// integers. Bits are read MSB-first within each byte. Use `align` to
 //// return to byte-aligned parsing after bit-level operations.
 
 import bitty
@@ -32,6 +32,34 @@ pub fn bit() -> bitty.Parser(Bool) {
         )
       }
       _ -> bitty.stop_expected(state, "a bit")
+    }
+  })
+}
+
+/// Skip remaining bits in the current byte to reach the next byte boundary.
+/// If already aligned, this is a no-op. Use after bit-level parsing to
+/// resume byte-aligned operations.
+///
+/// ```gleam
+/// use flag <- bitty.then(bits.bit())
+/// use _ <- bitty.then(bits.align())
+/// use value <- bitty.then(num.u8())
+/// bitty.success(#(flag, value))
+/// ```
+pub fn align() -> bitty.Parser(Nil) {
+  bitty.make_parser(fn(state: bitty.State) {
+    case state.bit_offset == 0 {
+      True -> bitty.Continue(Nil, state, False)
+      False ->
+        bitty.Continue(
+          Nil,
+          bitty.State(
+            ..state,
+            byte_offset: state.byte_offset + 1,
+            bit_offset: 0,
+          ),
+          True,
+        )
     }
   })
 }
