@@ -399,6 +399,73 @@ pub fn within_bytes_partial_full_consumption_test() {
   assert result == Ok(#(#(1, 2), <<>>))
 }
 
+pub fn preceded_discards_prefix_test() {
+  let parser = bitty.preceded(b.tag(<<0x00>>), num.u8())
+  let result = bitty.run(parser, on: <<0x00, 0x42>>)
+  assert result == Ok(0x42)
+}
+
+pub fn preceded_prefix_failure_propagates_test() {
+  let parser = bitty.preceded(b.tag(<<0xFF>>), num.u8())
+  let assert Error(_) = bitty.run(parser, on: <<0x00, 0x42>>)
+}
+
+pub fn terminated_discards_suffix_test() {
+  let parser = bitty.terminated(num.u8(), b.tag(<<0x00>>))
+  let result = bitty.run(parser, on: <<0x42, 0x00>>)
+  assert result == Ok(0x42)
+}
+
+pub fn terminated_suffix_failure_propagates_test() {
+  let parser = bitty.terminated(num.u8(), b.tag(<<0xFF>>))
+  let assert Error(_) = bitty.run(parser, on: <<0x42, 0x00>>)
+}
+
+pub fn delimited_returns_inner_value_test() {
+  let parser = bitty.delimited(b.tag(<<0x28>>), num.u8(), b.tag(<<0x29>>))
+  let result = bitty.run(parser, on: <<0x28, 0x42, 0x29>>)
+  assert result == Ok(0x42)
+}
+
+pub fn delimited_open_failure_propagates_test() {
+  let parser = bitty.delimited(b.tag(<<0x28>>), num.u8(), b.tag(<<0x29>>))
+  let assert Error(_) = bitty.run(parser, on: <<0xFF, 0x42, 0x29>>)
+}
+
+pub fn delimited_close_failure_propagates_test() {
+  let parser = bitty.delimited(b.tag(<<0x28>>), num.u8(), b.tag(<<0x29>>))
+  let assert Error(_) = bitty.run(parser, on: <<0x28, 0x42, 0xFF>>)
+}
+
+pub fn separated_multiple_items_test() {
+  let parser = bitty.separated(num.u8(), by: b.tag(<<0x2C>>))
+  let result = bitty.run(parser, on: <<1, 0x2C, 2, 0x2C, 3>>)
+  assert result == Ok([1, 2, 3])
+}
+
+pub fn separated_single_item_test() {
+  let parser = bitty.separated(num.u8(), by: b.tag(<<0x2C>>))
+  let result = bitty.run(parser, on: <<0x42>>)
+  assert result == Ok([0x42])
+}
+
+pub fn separated_empty_input_returns_empty_list_test() {
+  let parser = bitty.separated(num.u8(), by: b.tag(<<0x2C>>))
+  let result = bitty.run(parser, on: <<>>)
+  assert result == Ok([])
+}
+
+pub fn separated1_requires_at_least_one_test() {
+  let parser = bitty.separated1(num.u8(), by: b.tag(<<0x2C>>))
+  let assert Error(_) = bitty.run(parser, on: <<>>)
+}
+
+pub fn separated1_multiple_items_test() {
+  let parser = bitty.separated1(num.u8(), by: b.tag(<<0x2C>>))
+  let result = bitty.run(parser, on: <<1, 0x2C, 2>>)
+  assert result == Ok([1, 2])
+}
+
 pub fn from_result_with_use_syntax_test() {
   let parser = {
     use raw <- bitty.then(b.take(5))

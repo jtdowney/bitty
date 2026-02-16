@@ -401,6 +401,71 @@ fn repeat_loop(
   }
 }
 
+/// Run `prefix` then `parser`, discarding the prefix result and returning
+/// only the parser's value.
+///
+/// ```gleam
+/// use value <- bitty.then(bitty.preceded(bytes.tag(<<0x00>>), num.u8()))
+/// bitty.success(value)
+/// ```
+pub fn preceded(prefix: Parser(a), parser: Parser(b)) -> Parser(b) {
+  prefix |> then(fn(_) { parser })
+}
+
+/// Run `parser` then `suffix`, discarding the suffix result and returning
+/// only the parser's value.
+///
+/// ```gleam
+/// use value <- bitty.then(bitty.terminated(num.u8(), bytes.tag(<<0x00>>)))
+/// bitty.success(value)
+/// ```
+pub fn terminated(parser: Parser(a), suffix: Parser(b)) -> Parser(a) {
+  parser |> then(fn(value) { suffix |> map(fn(_) { value }) })
+}
+
+/// Run `open`, `parser`, then `close`, returning only the parser's value.
+///
+/// ```gleam
+/// let parser = bitty.delimited(
+///   bytes.tag(<<0x28>>),
+///   num.u8(),
+///   bytes.tag(<<0x29>>),
+/// )
+/// ```
+pub fn delimited(
+  open: Parser(a),
+  parser: Parser(b),
+  close: Parser(c),
+) -> Parser(b) {
+  preceded(open, terminated(parser, close))
+}
+
+/// Parse zero or more occurrences of `parser` separated by `separator`.
+/// The separator parser's result is discarded. Returns a list of the
+/// parsed values. Succeeds with an empty list if the first item fails
+/// without consuming input.
+///
+/// ```gleam
+/// let parser = bitty.separated(num.u8(), by: bytes.tag(<<0x2C>>))
+/// let assert Ok(values) = bitty.run(parser, on: <<1, 0x2C, 2, 0x2C, 3>>)
+/// assert values == [1, 2, 3]
+/// ```
+pub fn separated(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a)) {
+  one_of([
+    separated1(parser, by: separator),
+    success([]),
+  ])
+}
+
+/// Like `separated`, but requires at least one item.
+pub fn separated1(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a)) {
+  parser
+  |> then(fn(first) {
+    many(preceded(separator, parser))
+    |> map(fn(rest) { [first, ..rest] })
+  })
+}
+
 /// Try a parser, returning `Some(value)` on success or `None` if it fails
 /// without consuming input. A consuming failure still propagates.
 pub fn optional(parser: Parser(a)) -> Parser(Option(a)) {
