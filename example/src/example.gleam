@@ -1,14 +1,13 @@
 import bitty
-import bitty/bytes as b
 import dns
 import ethernet
 import gleam/int
 import gleam/io
 import gleam/list
-import gleam/result
 import ipv4
 import pcap
 import simplifile
+import udp
 
 pub fn main() {
   let assert Ok(data) = simplifile.read_bits("capture.pcap")
@@ -57,12 +56,16 @@ fn parse_ipv4(data: BitArray) {
 }
 
 fn parse_udp_dns(data: BitArray) {
-  let parsed = {
-    use #(_, dns_data) <- result.try(bitty.run_partial(b.skip(8), on: data))
-    bitty.run_partial(dns.message(), on: dns_data)
+  let parser = {
+    use header <- bitty.then(udp.header())
+    use message <- bitty.then(dns.message())
+    bitty.success(#(header, message))
   }
-  case parsed {
-    Ok(#(message, _)) -> io.println(dns.message_to_string(message))
-    Error(_) -> io.println("  Failed to parse DNS")
+  case bitty.run_partial(parser, on: data) {
+    Ok(#(#(header, message), _)) -> {
+      io.println(udp.header_to_string(header))
+      io.println(dns.message_to_string(message))
+    }
+    Error(_) -> io.println("  Failed to parse UDP/DNS")
   }
 }
