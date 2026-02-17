@@ -258,7 +258,7 @@ pub fn take_while_all_bytes_satisfy_predicate_pbt_test() {
     let input = list.fold(bytes, <<>>, fn(acc, b) { <<acc:bits, b:size(8)>> })
     let assert Ok(#(result, _)) =
       bitty.run_partial(b.take_while(predicate), on: input)
-    assert all_bytes_below(result, threshold) == True
+    assert all_bytes_below(result, threshold)
   })
 }
 

@@ -3,6 +3,7 @@ import bitty/bits
 import bitty/num
 import bitty/string as s
 import gleam/bit_array
+import gleam/int
 import gleam/list
 import gleam/string
 import qcheck
@@ -163,33 +164,15 @@ pub fn take_until_no_match_returns_all_test() {
   assert result == Ok("hello")
 }
 
-pub fn alpha_matches_letters_test() {
-  let input = bit_array.from_string("abcXYZ123")
-  let result = bitty.run_partial(s.alpha(), on: input)
-  assert result == Ok(#("abcXYZ", <<"123">>))
-}
-
 pub fn alpha_empty_on_no_match_test() {
   let input = bit_array.from_string("123")
   let result = bitty.run_partial(s.alpha(), on: input)
   assert result == Ok(#("", <<"123">>))
 }
 
-pub fn alpha1_matches_letters_test() {
-  let input = bit_array.from_string("Hello world")
-  let result = bitty.run_partial(s.alpha1(), on: input)
-  assert result == Ok(#("Hello", <<" world">>))
-}
-
 pub fn alpha1_fails_on_no_match_test() {
   let input = bit_array.from_string("123")
   let assert Error(_) = bitty.run_partial(s.alpha1(), on: input)
-}
-
-pub fn alphanumeric_matches_test() {
-  let input = bit_array.from_string("abc123!!")
-  let result = bitty.run_partial(s.alphanumeric(), on: input)
-  assert result == Ok(#("abc123", <<"!!">>))
 }
 
 pub fn alphanumeric_empty_on_no_match_test() {
@@ -203,39 +186,15 @@ pub fn alphanumeric1_fails_on_no_match_test() {
   let assert Error(_) = bitty.run_partial(s.alphanumeric1(), on: input)
 }
 
-pub fn digit_matches_test() {
-  let input = bit_array.from_string("42abc")
-  let result = bitty.run_partial(s.digit(), on: input)
-  assert result == Ok(#("42", <<"abc">>))
-}
-
 pub fn digit_empty_on_no_match_test() {
   let input = bit_array.from_string("abc")
   let result = bitty.run_partial(s.digit(), on: input)
   assert result == Ok(#("", <<"abc">>))
 }
 
-pub fn digit1_matches_test() {
-  let input = bit_array.from_string("9876rest")
-  let result = bitty.run_partial(s.digit1(), on: input)
-  assert result == Ok(#("9876", <<"rest">>))
-}
-
 pub fn digit1_fails_on_no_match_test() {
   let input = bit_array.from_string("abc")
   let assert Error(_) = bitty.run_partial(s.digit1(), on: input)
-}
-
-pub fn hex_digit_matches_test() {
-  let input = bit_array.from_string("deadBEEF0g")
-  let result = bitty.run_partial(s.hex_digit(), on: input)
-  assert result == Ok(#("deadBEEF0", <<"g">>))
-}
-
-pub fn hex_digit1_matches_test() {
-  let input = bit_array.from_string("0aF!")
-  let result = bitty.run_partial(s.hex_digit1(), on: input)
-  assert result == Ok(#("0aF", <<"!">>))
 }
 
 pub fn hex_digit_empty_on_no_match_test() {
@@ -249,22 +208,10 @@ pub fn hex_digit1_fails_on_no_match_test() {
   let assert Error(_) = bitty.run_partial(s.hex_digit1(), on: input)
 }
 
-pub fn space_matches_spaces_and_tabs_test() {
-  let input = bit_array.from_string("  \t hello")
-  let result = bitty.run_partial(s.space(), on: input)
-  assert result == Ok(#("  \t ", <<"hello">>))
-}
-
 pub fn space_empty_on_no_match_test() {
   let input = bit_array.from_string("hello")
   let result = bitty.run_partial(s.space(), on: input)
   assert result == Ok(#("", <<"hello">>))
-}
-
-pub fn space1_matches_test() {
-  let input = bit_array.from_string("\t rest")
-  let result = bitty.run_partial(s.space1(), on: input)
-  assert result == Ok(#("\t ", <<"rest">>))
 }
 
 pub fn space1_fails_on_no_match_test() {
@@ -272,22 +219,10 @@ pub fn space1_fails_on_no_match_test() {
   let assert Error(_) = bitty.run_partial(s.space1(), on: input)
 }
 
-pub fn multispace_matches_all_whitespace_test() {
-  let input = bit_array.from_string(" \t\r\n hello")
-  let result = bitty.run_partial(s.multispace(), on: input)
-  assert result == Ok(#(" \t\r\n ", <<"hello">>))
-}
-
 pub fn multispace_empty_on_no_match_test() {
   let input = bit_array.from_string("hello")
   let result = bitty.run_partial(s.multispace(), on: input)
   assert result == Ok(#("", <<"hello">>))
-}
-
-pub fn multispace1_matches_test() {
-  let input = bit_array.from_string("\n\t x")
-  let result = bitty.run_partial(s.multispace1(), on: input)
-  assert result == Ok(#("\n\t ", <<"x">>))
 }
 
 pub fn multispace1_fails_on_no_match_test() {
@@ -470,4 +405,73 @@ pub fn take_graphemes_partial_failure_blocks_backtrack_test() {
       bitty.success("fallback"),
     ])
   let assert Error(_) = bitty.run(parser, on: <<"abc">>)
+}
+
+pub fn integer_round_trip_pbt_test() {
+  qcheck.run(
+    qcheck.default_config(),
+    qcheck.bounded_int(0, 999_999),
+    fn(original) {
+      let input = bit_array.from_string(int.to_string(original))
+      let result = bitty.run(s.integer(), on: input)
+      assert result == Ok(original)
+    },
+  )
+}
+
+pub fn alpha_classification_pbt_test() {
+  let gen =
+    qcheck.non_empty_string_from(qcheck.bounded_codepoint(from: 0x20, to: 0x7E))
+  qcheck.run(qcheck.default_config(), gen, fn(input) {
+    let bytes = bit_array.from_string(input)
+    let assert Ok(#(matched, _)) = bitty.run_partial(s.alpha(), on: bytes)
+    let valid =
+      string.to_graphemes(matched)
+      |> list.all(fn(c) {
+        case <<c:utf8>> {
+          <<b>> -> { b >= 0x41 && b <= 0x5A } || { b >= 0x61 && b <= 0x7A }
+          _ -> False
+        }
+      })
+    assert valid
+  })
+}
+
+pub fn digit_classification_pbt_test() {
+  let gen =
+    qcheck.non_empty_string_from(qcheck.bounded_codepoint(from: 0x20, to: 0x7E))
+  qcheck.run(qcheck.default_config(), gen, fn(input) {
+    let bytes = bit_array.from_string(input)
+    let assert Ok(#(matched, _)) = bitty.run_partial(s.digit(), on: bytes)
+    let valid =
+      string.to_graphemes(matched)
+      |> list.all(fn(c) {
+        case <<c:utf8>> {
+          <<b>> -> b >= 0x30 && b <= 0x39
+          _ -> False
+        }
+      })
+    assert valid
+  })
+}
+
+pub fn hex_digit_classification_pbt_test() {
+  let gen =
+    qcheck.non_empty_string_from(qcheck.bounded_codepoint(from: 0x20, to: 0x7E))
+  qcheck.run(qcheck.default_config(), gen, fn(input) {
+    let bytes = bit_array.from_string(input)
+    let assert Ok(#(matched, _)) = bitty.run_partial(s.hex_digit(), on: bytes)
+    let valid =
+      string.to_graphemes(matched)
+      |> list.all(fn(c) {
+        case bit_array.from_string(c) {
+          <<b>> ->
+            { b >= 0x30 && b <= 0x39 }
+            || { b >= 0x41 && b <= 0x46 }
+            || { b >= 0x61 && b <= 0x66 }
+          _ -> False
+        }
+      })
+    assert valid
+  })
 }

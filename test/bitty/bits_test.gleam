@@ -6,12 +6,12 @@ import qcheck
 
 pub fn bit_true_test() {
   let assert Ok(#(value, _rest)) = bitty.run_partial(bits.bit(), on: <<0x80>>)
-  assert value == True
+  assert value
 }
 
 pub fn bit_false_test() {
   let assert Ok(#(value, _rest)) = bitty.run_partial(bits.bit(), on: <<0x00>>)
-  assert value == False
+  assert !value
 }
 
 pub fn bit_sequence_test() {
