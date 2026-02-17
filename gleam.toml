@@ -1,6 +1,6 @@
 name = "bitty"
 version = "1.0.0"
-description = "Binary parser combinator library for Gleam"
+description = "Binary and string parser combinator library for Gleam"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "jtdowney", repo = "bitty" }
 
