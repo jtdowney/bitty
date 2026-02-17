@@ -115,7 +115,9 @@ pub fn run(parser: Parser(a), on input: BitArray) -> Result(a, BittyError) {
 }
 
 /// Run a parser on the given input, returning the parsed value and any
-/// unconsumed bytes. Does not require all input to be consumed.
+/// unconsumed input. Does not require all input to be consumed.
+/// The returned `BitArray` may not be byte-aligned when bit-level parsers
+/// are used.
 ///
 /// ```gleam
 /// let assert Ok(#(byte, rest)) =
@@ -133,6 +135,8 @@ pub fn run_partial(
 
 /// Like `run_partial`, but also returns the `Location` where the parser
 /// stopped. Useful for incremental or streaming parsing.
+/// The returned `BitArray` may not be byte-aligned when bit-level parsers
+/// are used.
 pub fn run_with_location(
   parser: Parser(a),
   on input: BitArray,
@@ -869,13 +873,31 @@ fn within_bytes_partial_check(
   inner_end: State,
   window: BitArray,
 ) -> Step(#(a, BitArray)) {
-  let effective_inner_offset = effective_byte_offset(inner_end)
-  let unconsumed = byte_len - effective_inner_offset
-  let leftover = case
-    bit_array.slice(window, effective_inner_offset, unconsumed)
-  {
-    Ok(rest) -> rest
-    _ -> <<>>
+  let leftover = case inner_end.bit_offset != 0 {
+    True -> {
+      let available = 8 - inner_end.bit_offset
+      let partial = case bit_array.slice(window, inner_end.byte_offset, 1) {
+        Ok(<<byte>>) -> {
+          let mask = int.bitwise_shift_left(1, available) - 1
+          let bits_val = int.bitwise_and(byte, mask)
+          <<bits_val:size(available)>>
+        }
+        _ -> <<>>
+      }
+      let full_offset = inner_end.byte_offset + 1
+      let remaining = byte_len - full_offset
+      case bit_array.slice(window, full_offset, remaining) {
+        Ok(rest) -> <<partial:bits, rest:bits>>
+        _ -> partial
+      }
+    }
+    False -> {
+      let unconsumed = byte_len - inner_end.byte_offset
+      case bit_array.slice(window, inner_end.byte_offset, unconsumed) {
+        Ok(rest) -> rest
+        _ -> <<>>
+      }
+    }
   }
   Continue(
     #(value, leftover),
@@ -901,8 +923,9 @@ fn within_bytes_stop(
 }
 
 /// Like `within_bytes`, but the inner parser may stop early. Returns the
-/// parsed value and any unconsumed bytes from the window as a tuple.
-/// Requires byte alignment.
+/// parsed value and any unconsumed input from the window as a tuple.
+/// Requires byte alignment. The returned `BitArray` may not be byte-aligned
+/// when bit-level parsers are used.
 pub fn within_bytes_partial(
   byte_len: Int,
   run inner: Parser(a),
@@ -1108,20 +1131,36 @@ pub fn require_aligned(state: State, then continue: fn() -> Step(a)) -> Step(a) 
   }
 }
 
-@internal
-pub fn effective_byte_offset(state: State) -> Int {
-  case state.bit_offset != 0 {
-    True -> state.byte_offset + 1
-    False -> state.byte_offset
+fn remaining_bits_of_byte(state: State) -> BitArray {
+  let available = 8 - state.bit_offset
+  case bit_array.slice(state.input, state.byte_offset, 1) {
+    Ok(<<byte>>) -> {
+      let mask = int.bitwise_shift_left(1, available) - 1
+      let bits_val = int.bitwise_and(byte, mask)
+      <<bits_val:size(available)>>
+    }
+    _ -> <<>>
   }
 }
 
 fn remaining_slice(state: State) -> BitArray {
-  let offset = effective_byte_offset(state)
-  let remaining = bit_array.byte_size(state.input) - offset
-  case bit_array.slice(state.input, offset, remaining) {
-    Ok(rest) -> rest
-    _ -> <<>>
+  case state.bit_offset != 0 {
+    True -> {
+      let partial = remaining_bits_of_byte(state)
+      let full_offset = state.byte_offset + 1
+      let remaining = bit_array.byte_size(state.input) - full_offset
+      case bit_array.slice(state.input, full_offset, remaining) {
+        Ok(rest) -> <<partial:bits, rest:bits>>
+        _ -> partial
+      }
+    }
+    False -> {
+      let remaining = bit_array.byte_size(state.input) - state.byte_offset
+      case bit_array.slice(state.input, state.byte_offset, remaining) {
+        Ok(rest) -> rest
+        _ -> <<>>
+      }
+    }
   }
 }
 

@@ -39,11 +39,12 @@ pub fn null_terminated_round_trip_test() {
     qcheck.default_config(),
     qcheck.non_empty_string_from(qcheck.alphabetic_ascii_codepoint()),
     fn(original) {
-    let bytes = bit_array.from_string(original)
-    let input = <<bytes:bits, 0x00>>
-    let result = bitty.run(s.null_terminated(), on: input)
-    assert result == Ok(original)
-  })
+      let bytes = bit_array.from_string(original)
+      let input = <<bytes:bits, 0x00>>
+      let result = bitty.run(s.null_terminated(), on: input)
+      assert result == Ok(original)
+    },
+  )
 }
 
 pub fn null_terminated_then_more_data_test() {

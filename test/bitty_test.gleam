@@ -28,10 +28,35 @@ pub fn success_run_partial_returns_value_and_remainder_test() {
   })
 }
 
-pub fn run_partial_after_bits_excludes_partial_byte_test() {
+pub fn run_partial_after_bits_preserves_partial_byte_test() {
   let parser = bits.uint(3)
   let result = bitty.run_partial(parser, on: <<0xE0, 0xAB>>)
-  assert result == Ok(#(7, <<0xAB>>))
+  assert result == Ok(#(7, <<0:size(5), 0xAB>>))
+}
+
+pub fn run_partial_after_bits_preserves_nonzero_partial_bits_test() {
+  let parser = bits.uint(3)
+  let result = bitty.run_partial(parser, on: <<0xFF, 0xAB>>)
+  assert result == Ok(#(7, <<0x1F:size(5), 0xAB>>))
+}
+
+pub fn run_partial_after_bits_single_byte_no_trailing_test() {
+  let parser = bits.uint(3)
+  let result = bitty.run_partial(parser, on: <<0xE0>>)
+  assert result == Ok(#(7, <<0:size(5)>>))
+}
+
+pub fn run_with_location_preserves_partial_bits_test() {
+  let parser = bits.uint(3)
+  let result = bitty.run_with_location(parser, on: <<0xE0, 0xAB>>)
+  assert result
+    == Ok(#(7, bitty.Location(byte: 0, bit: 3), <<0:size(5), 0xAB>>))
+}
+
+pub fn within_bytes_partial_preserves_partial_bits_test() {
+  let parser = bitty.within_bytes_partial(2, bits.uint(3))
+  let result = bitty.run(parser, on: <<0xE0, 0xAB>>)
+  assert result == Ok(#(7, <<0:size(5), 0xAB>>))
 }
 
 pub fn run_partial_byte_aligned_unchanged_test() {
@@ -284,7 +309,7 @@ pub fn location_after_bits_reports_bit_offset_test() {
     bitty.location()
   }
   let result = bitty.run_partial(parser, on: <<0xFF>>)
-  assert result == Ok(#(bitty.Location(byte: 0, bit: 3), <<>>))
+  assert result == Ok(#(bitty.Location(byte: 0, bit: 3), <<0x1F:size(5)>>))
 }
 
 pub fn end_succeeds_at_end_of_input_test() {
