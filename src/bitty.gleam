@@ -160,6 +160,17 @@ pub fn map(parser: Parser(a), with f: fn(a) -> b) -> Parser(b) {
   })
 }
 
+/// Replace the result of a parser with a fixed value, discarding the
+/// original result. Useful with `tag` patterns.
+///
+/// ```gleam
+/// let parser = bytes.tag(<<0x01>>) |> bitty.replace(with: "one")
+/// let assert Ok("one") = bitty.run(parser, on: <<0x01>>)
+/// ```
+pub fn replace(parser: Parser(a), with value: b) -> Parser(b) {
+  parser |> map(fn(_) { value })
+}
+
 /// Sequence two parsers: run `parser`, then pass its result to `next` to
 /// get the second parser. Designed for Gleam's `use` syntax:
 ///
@@ -330,45 +341,137 @@ pub fn context(parser: Parser(a), in name: String) -> Parser(a) {
 /// assert values == [1, 2, 3]
 /// ```
 pub fn many(parser: Parser(a)) -> Parser(List(a)) {
-  Parser(fn(state) { many_loop(parser, state, [], False) })
-}
-
-fn many_loop(
-  parser: Parser(a),
-  state: State,
-  acc: List(a),
-  any_consumed: Bool,
-) -> Step(List(a)) {
-  case parser.run(State(..state, committed: False)) {
-    Continue(value, state1, True) ->
-      many_loop(
-        parser,
-        State(..state1, committed: state1.committed || state.committed),
-        [value, ..acc],
-        True,
-      )
-    Continue(_value, _state1, False) ->
-      Stop(
-        BittyError(
-          at: Location(byte: state.byte_offset, bit: state.bit_offset),
-          expected: ["consuming parser in many"],
-          context: [],
-          message: None,
-        ),
-        any_consumed,
-        state.committed,
-      )
-    Stop(_error, False, False) ->
-      Continue(list.reverse(acc), state, any_consumed)
-    Stop(error, consumed, committed) ->
-      Stop(error, any_consumed || consumed, committed || state.committed)
-  }
+  fold(parser, from: [], with: fn(acc, x) { [x, ..acc] })
+  |> map(list.reverse)
 }
 
 /// Like `many`, but requires at least one successful match.
 pub fn many1(parser: Parser(a)) -> Parser(List(a)) {
   parser
   |> then(fn(first) { many(parser) |> map(fn(rest) { [first, ..rest] }) })
+}
+
+/// Repeat a parser until a terminator succeeds, returning the collected
+/// values and the terminator's result as a tuple. The terminator is tried
+/// first each iteration; on failure the item parser runs. The item parser
+/// must consume input on each iteration to prevent infinite loops.
+///
+/// ```gleam
+/// let parser = bitty.many_until(num.u8(), until: bytes.tag(<<0x00>>))
+/// let assert Ok(#(values, Nil)) =
+///   bitty.run(parser, on: <<1, 2, 3, 0x00>>)
+/// assert values == [1, 2, 3]
+/// ```
+pub fn many_until(
+  parser: Parser(a),
+  until terminator: Parser(b),
+) -> Parser(#(List(a), b)) {
+  Parser(fn(state) { many_until_loop(parser, terminator, state, [], False) })
+}
+
+fn many_until_loop(
+  parser: Parser(a),
+  terminator: Parser(b),
+  state: State,
+  acc: List(a),
+  any_consumed: Bool,
+) -> Step(#(List(a), b)) {
+  case terminator.run(State(..state, committed: False)) {
+    Continue(term_value, state1, consumed) ->
+      Continue(
+        #(list.reverse(acc), term_value),
+        State(..state1, committed: state1.committed || state.committed),
+        any_consumed || consumed,
+      )
+    Stop(_, False, False) ->
+      case parser.run(state) {
+        Continue(value, state1, True) ->
+          many_until_loop(
+            parser,
+            terminator,
+            State(..state1, committed: state1.committed || state.committed),
+            [value, ..acc],
+            True,
+          )
+        Continue(_value, _state1, False) ->
+          Stop(
+            BittyError(
+              at: Location(byte: state.byte_offset, bit: state.bit_offset),
+              expected: ["consuming parser"],
+              context: [],
+              message: None,
+            ),
+            any_consumed,
+            state.committed,
+          )
+        Stop(error, consumed, committed) ->
+          Stop(error, any_consumed || consumed, committed || state.committed)
+      }
+    Stop(error, consumed, committed) ->
+      Stop(error, any_consumed || consumed, committed || state.committed)
+  }
+}
+
+/// Like `many` but accumulates results with a function instead of
+/// building a list. Runs the parser zero or more times.
+///
+/// ```gleam
+/// let parser = bitty.fold(num.u8(), from: 0, with: fn(acc, x) { acc + x })
+/// let assert Ok(6) = bitty.run(parser, on: <<1, 2, 3>>)
+/// ```
+pub fn fold(
+  parser: Parser(a),
+  from initial: b,
+  with f: fn(b, a) -> b,
+) -> Parser(b) {
+  Parser(fn(state) { fold_loop(parser, f, state, initial, False) })
+}
+
+fn fold_loop(
+  parser: Parser(a),
+  f: fn(b, a) -> b,
+  state: State,
+  acc: b,
+  any_consumed: Bool,
+) -> Step(b) {
+  case parser.run(State(..state, committed: False)) {
+    Continue(value, state1, True) ->
+      fold_loop(
+        parser,
+        f,
+        State(..state1, committed: state1.committed || state.committed),
+        f(acc, value),
+        True,
+      )
+    Continue(_value, _state1, False) ->
+      Stop(
+        BittyError(
+          at: Location(byte: state.byte_offset, bit: state.bit_offset),
+          expected: ["consuming parser"],
+          context: [],
+          message: None,
+        ),
+        any_consumed,
+        state.committed,
+      )
+    Stop(_error, False, False) -> Continue(acc, state, any_consumed)
+    Stop(error, consumed, committed) ->
+      Stop(error, any_consumed || consumed, committed || state.committed)
+  }
+}
+
+/// Like `fold` but requires at least one successful match.
+///
+/// ```gleam
+/// let parser = bitty.fold1(num.u8(), from: 0, with: fn(acc, x) { acc + x })
+/// let assert Ok(6) = bitty.run(parser, on: <<1, 2, 3>>)
+/// ```
+pub fn fold1(
+  parser: Parser(a),
+  from initial: b,
+  with f: fn(b, a) -> b,
+) -> Parser(b) {
+  parser |> then(fn(first) { fold(parser, from: f(initial, first), with: f) })
 }
 
 /// Run a parser exactly `count` times, collecting results into a list.
@@ -401,6 +504,21 @@ fn repeat_loop(
   }
 }
 
+/// Parse a count, then run a parser that many times. Dynamic version
+/// of `repeat`.
+///
+/// ```gleam
+/// let parser = bitty.length_repeat(num.u8(), run: num.u8())
+/// let assert Ok(values) = bitty.run(parser, on: <<3, 10, 20, 30>>)
+/// assert values == [10, 20, 30]
+/// ```
+pub fn length_repeat(
+  count: Parser(Int),
+  run parser: Parser(a),
+) -> Parser(List(a)) {
+  count |> then(fn(n) { repeat(parser, times: n) })
+}
+
 /// Run `prefix` then `parser`, discarding the prefix result and returning
 /// only the parser's value.
 ///
@@ -420,7 +538,7 @@ pub fn preceded(prefix: Parser(a), parser: Parser(b)) -> Parser(b) {
 /// bitty.success(value)
 /// ```
 pub fn terminated(parser: Parser(a), suffix: Parser(b)) -> Parser(a) {
-  parser |> then(fn(value) { suffix |> map(fn(_) { value }) })
+  parser |> then(fn(value) { suffix |> replace(with: value) })
 }
 
 /// Run `open`, `parser`, then `close`, returning only the parser's value.
@@ -523,6 +641,82 @@ pub fn optional(parser: Parser(a)) -> Parser(Option(a)) {
       Stop(error, consumed, committed) -> Stop(error, consumed, committed)
     }
   })
+}
+
+/// Run a parser and then check the result against a predicate. If the
+/// predicate returns `False`, the parse fails with `"verify"` expected.
+///
+/// ```gleam
+/// let parser = num.u8() |> bitty.verify(with: fn(x) { x > 0 })
+/// let assert Ok(42) = bitty.run(parser, on: <<42>>)
+/// let assert Error(_) = bitty.run(parser, on: <<0>>)
+/// ```
+pub fn verify(parser: Parser(a), with predicate: fn(a) -> Bool) -> Parser(a) {
+  Parser(fn(state) {
+    case parser.run(state) {
+      Continue(value, state1, consumed) ->
+        case predicate(value) {
+          True -> Continue(value, state1, consumed)
+          False ->
+            Stop(
+              BittyError(
+                at: Location(byte: state.byte_offset, bit: state.bit_offset),
+                expected: ["verify"],
+                context: [],
+                message: None,
+              ),
+              consumed,
+              state1.committed,
+            )
+        }
+      Stop(error, consumed, committed) -> Stop(error, consumed, committed)
+    }
+  })
+}
+
+/// Negative lookahead: succeeds with `Nil` if the child parser fails,
+/// fails if the child parser succeeds. Never consumes input.
+///
+/// ```gleam
+/// let parser = {
+///   use _ <- bitty.then(bitty.not(bytes.tag(<<0x00>>)))
+///   num.u8()
+/// }
+/// let assert Ok(0x42) = bitty.run(parser, on: <<0x42>>)
+/// let assert Error(_) = bitty.run(parser, on: <<0x00>>)
+/// ```
+pub fn not(parser: Parser(a)) -> Parser(Nil) {
+  Parser(fn(state) {
+    case parser.run(state) {
+      Continue(_, _, _) ->
+        Stop(
+          BittyError(
+            at: Location(byte: state.byte_offset, bit: state.bit_offset),
+            expected: [],
+            context: [],
+            message: None,
+          ),
+          False,
+          False,
+        )
+      Stop(_, _, _) -> Continue(Nil, state, False)
+    }
+  })
+}
+
+/// Conditionally run a parser. If `condition` is `True`, run the parser
+/// and wrap the result in `Some`. If `False`, return `None` without
+/// consuming input.
+///
+/// ```gleam
+/// let parser = bitty.cond(when: True, run: num.u8())
+/// let assert Ok(Some(42)) = bitty.run(parser, on: <<42>>)
+/// ```
+pub fn cond(when condition: Bool, run parser: Parser(a)) -> Parser(Option(a)) {
+  case condition {
+    True -> parser |> map(Some)
+    False -> success(None)
+  }
 }
 
 /// Return the current `Location` in the input without consuming anything.
@@ -736,6 +930,62 @@ fn within_bytes_partial_run(
         within_bytes_stop(st, error, consumed, committed)
     }
   })
+}
+
+/// Run a parser and return the raw bytes it consumed, discarding the
+/// parsed value. Requires byte alignment at both start and end.
+///
+/// ```gleam
+/// let inner = {
+///   use _ <- bitty.then(num.u8())
+///   use _ <- bitty.then(num.u8())
+///   bitty.success(Nil)
+/// }
+/// let assert Ok(raw) = bitty.run(bitty.capture(inner), on: <<0xCA, 0xFE>>)
+/// assert raw == <<0xCA, 0xFE>>
+/// ```
+pub fn capture(parser: Parser(a)) -> Parser(BitArray) {
+  Parser(fn(state) {
+    use <- require_aligned(state)
+    case parser.run(state) {
+      Continue(_value, state1, consumed) -> {
+        use <- bool.guard(
+          when: state1.bit_offset != 0,
+          return: stop_expected(state1, "byte alignment after capture"),
+        )
+        let byte_count = state1.byte_offset - state.byte_offset
+        case bit_array.slice(state.input, state.byte_offset, byte_count) {
+          Ok(captured) -> Continue(captured, state1, consumed)
+          _ -> stop_expected(state, "valid slice")
+        }
+      }
+      Stop(error, consumed, committed) -> Stop(error, consumed, committed)
+    }
+  })
+}
+
+/// Parse a byte count, then run a parser within a window of that many
+/// bytes. Dynamic version of `within_bytes`.
+///
+/// ```gleam
+/// let parser = bitty.length_within(num.u8(), run: bytes.rest())
+/// let assert Ok(data) = bitty.run(parser, on: <<3, 0xAA, 0xBB, 0xCC>>)
+/// assert data == <<0xAA, 0xBB, 0xCC>>
+/// ```
+pub fn length_within(count: Parser(Int), run parser: Parser(a)) -> Parser(a) {
+  count |> then(fn(n) { within_bytes(n, run: parser) })
+}
+
+/// Parse a byte count, then take that many bytes as a `BitArray`.
+/// Dynamic version of `bytes.take`.
+///
+/// ```gleam
+/// let parser = bitty.length_take(num.u8())
+/// let assert Ok(data) = bitty.run(parser, on: <<3, 0xAA, 0xBB, 0xCC>>)
+/// assert data == <<0xAA, 0xBB, 0xCC>>
+/// ```
+pub fn length_take(count: Parser(Int)) -> Parser(BitArray) {
+  count |> then(fn(n) { make_parser(read_n_bytes(_, n)) })
 }
 
 @internal

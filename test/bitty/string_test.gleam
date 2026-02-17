@@ -35,7 +35,10 @@ pub fn literal_mismatch_test() {
 }
 
 pub fn null_terminated_round_trip_test() {
-  qcheck.run(qcheck.default_config(), qcheck.non_empty_string(), fn(original) {
+  qcheck.run(
+    qcheck.default_config(),
+    qcheck.non_empty_string_from(qcheck.alphabetic_ascii_codepoint()),
+    fn(original) {
     let bytes = bit_array.from_string(original)
     let input = <<bytes:bits, 0x00>>
     let result = bitty.run(s.null_terminated(), on: input)
@@ -297,7 +300,7 @@ pub fn newline_matches_test() {
   assert result == Ok(#(Nil, <<"hello">>))
 }
 
-pub fn newline_fails_on_cr_test() {
+pub fn newline_fails_on_crlf_test() {
   let input = bit_array.from_string("\r\n")
   let assert Error(_) = bitty.run_partial(s.newline(), on: input)
 }

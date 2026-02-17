@@ -558,7 +558,7 @@ pub fn align_noop_when_already_aligned_test() {
 pub fn many_rejects_non_consuming_parser_test() {
   let parser = bitty.many(bitty.success(1))
   let assert Error(error) = bitty.run(parser, on: <<>>)
-  assert error.expected == ["consuming parser in many"]
+  assert error.expected == ["consuming parser"]
 }
 
 pub fn one_of_merges_expected_from_all_branches_test() {
@@ -591,4 +591,216 @@ pub fn within_bytes_partial_unaligned_fails_test() {
     bitty.within_bytes_partial(1, num.u8())
   }
   let assert Error(_) = bitty.run_partial(parser, on: <<0xFF, 0xFF>>)
+}
+
+pub fn verify_passes_when_predicate_true_test() {
+  let parser = num.u8() |> bitty.verify(with: fn(x) { x > 10 })
+  let result = bitty.run(parser, on: <<42>>)
+  assert result == Ok(42)
+}
+
+pub fn verify_fails_when_predicate_false_test() {
+  let parser = num.u8() |> bitty.verify(with: fn(x) { x > 100 })
+  let assert Error(error) = bitty.run(parser, on: <<42>>)
+  assert error.expected == ["verify"]
+  assert error.at == bitty.Location(byte: 0, bit: 0)
+}
+
+pub fn verify_propagates_inner_failure_test() {
+  let parser = num.u8() |> bitty.verify(with: fn(_) { True })
+  let assert Error(_) = bitty.run(parser, on: <<>>)
+}
+
+pub fn verify_preserves_consumed_flag_test() {
+  let parser =
+    bitty.one_of([
+      num.u8() |> bitty.verify(with: fn(x) { x == 0xFF }),
+      bitty.success(99),
+    ])
+  let assert Error(_) = bitty.run(parser, on: <<42>>)
+}
+
+pub fn not_succeeds_when_inner_fails_test() {
+  let parser = {
+    use _ <- bitty.then(bitty.not(b.tag(<<0x00>>)))
+    num.u8()
+  }
+  let result = bitty.run(parser, on: <<0x42>>)
+  assert result == Ok(0x42)
+}
+
+pub fn not_fails_when_inner_succeeds_test() {
+  let parser = bitty.not(b.tag(<<0x42>>))
+  let assert Error(_) = bitty.run_partial(parser, on: <<0x42>>)
+}
+
+pub fn not_never_consumes_input_test() {
+  let parser =
+    bitty.one_of([
+      bitty.not(num.u8()),
+      bitty.success(Nil),
+    ])
+  let result = bitty.run_partial(parser, on: <<0x42>>)
+  assert result == Ok(#(Nil, <<0x42>>))
+}
+
+pub fn not_discards_child_state_on_failure_test() {
+  let parser = {
+    use _ <- bitty.then(bitty.not(b.tag(<<0xFF>>)))
+    num.u8()
+  }
+  let result = bitty.run(parser, on: <<0x42>>)
+  assert result == Ok(0x42)
+}
+
+pub fn capture_returns_consumed_bytes_test() {
+  let inner = {
+    use _ <- bitty.then(num.u8())
+    use _ <- bitty.then(num.u8())
+    bitty.success(Nil)
+  }
+  let result = bitty.run(bitty.capture(inner), on: <<0xCA, 0xFE>>)
+  assert result == Ok(<<0xCA, 0xFE>>)
+}
+
+pub fn capture_empty_consumption_test() {
+  let result = bitty.run(bitty.capture(bitty.success(Nil)), on: <<>>)
+  assert result == Ok(<<>>)
+}
+
+pub fn capture_fails_if_unaligned_at_start_test() {
+  let parser = {
+    use _ <- bitty.then(bits.uint(3))
+    bitty.capture(num.u8())
+  }
+  let assert Error(_) = bitty.run_partial(parser, on: <<0xFF, 0xFF>>)
+}
+
+pub fn capture_fails_if_unaligned_at_end_test() {
+  let parser = bitty.capture(bits.uint(3))
+  let assert Error(_) = bitty.run_partial(parser, on: <<0xFF>>)
+}
+
+pub fn capture_propagates_inner_failure_test() {
+  let parser = bitty.capture(num.u8())
+  let assert Error(_) = bitty.run(parser, on: <<>>)
+}
+
+pub fn many_until_collects_until_terminator_test() {
+  let parser = bitty.many_until(num.u8(), until: b.tag(<<0x00>>))
+  let result = bitty.run(parser, on: <<1, 2, 3, 0x00>>)
+  assert result == Ok(#([1, 2, 3], Nil))
+}
+
+pub fn many_until_immediate_terminator_test() {
+  let parser = bitty.many_until(num.u8(), until: b.tag(<<0x00>>))
+  let result = bitty.run(parser, on: <<0x00>>)
+  assert result == Ok(#([], Nil))
+}
+
+pub fn many_until_terminator_not_found_test() {
+  let parser = bitty.many_until(num.u8(), until: b.tag(<<0x00>>))
+  let assert Error(_) = bitty.run(parser, on: <<1, 2, 3>>)
+}
+
+pub fn many_until_rejects_non_consuming_parser_test() {
+  let parser = bitty.many_until(bitty.success(1), until: b.tag(<<0x00>>))
+  let assert Error(error) = bitty.run(parser, on: <<0xFF>>)
+  assert error.expected == ["consuming parser"]
+}
+
+pub fn many_until_returns_terminator_value_test() {
+  let terminator = b.tag(<<0x00>>) |> bitty.replace(with: "end")
+  let parser = bitty.many_until(num.u8(), until: terminator)
+  let result = bitty.run(parser, on: <<1, 2, 0x00>>)
+  assert result == Ok(#([1, 2], "end"))
+}
+
+pub fn fold_accumulates_values_test() {
+  let parser = bitty.fold(num.u8(), from: 0, with: fn(acc, x) { acc + x })
+  let result = bitty.run(parser, on: <<1, 2, 3>>)
+  assert result == Ok(6)
+}
+
+pub fn fold_empty_input_returns_initial_test() {
+  let parser = bitty.fold(num.u8(), from: 42, with: fn(acc, x) { acc + x })
+  let result = bitty.run(parser, on: <<>>)
+  assert result == Ok(42)
+}
+
+pub fn fold_rejects_non_consuming_parser_test() {
+  let parser =
+    bitty.fold(bitty.success(1), from: 0, with: fn(acc, x) { acc + x })
+  let assert Error(error) = bitty.run(parser, on: <<>>)
+  assert error.expected == ["consuming parser"]
+}
+
+pub fn fold1_accumulates_values_test() {
+  let parser = bitty.fold1(num.u8(), from: 0, with: fn(acc, x) { acc + x })
+  let result = bitty.run(parser, on: <<1, 2, 3>>)
+  assert result == Ok(6)
+}
+
+pub fn fold1_empty_input_fails_test() {
+  let parser = bitty.fold1(num.u8(), from: 0, with: fn(acc, x) { acc + x })
+  let assert Error(_) = bitty.run(parser, on: <<>>)
+}
+
+pub fn fold1_single_element_test() {
+  let parser = bitty.fold1(num.u8(), from: 10, with: fn(acc, x) { acc + x })
+  let result = bitty.run(parser, on: <<5>>)
+  assert result == Ok(15)
+}
+
+pub fn replace_substitutes_value_test() {
+  let parser = b.tag(<<0x01>>) |> bitty.replace(with: "one")
+  let result = bitty.run(parser, on: <<0x01>>)
+  assert result == Ok("one")
+}
+
+pub fn cond_true_runs_parser_test() {
+  let parser = bitty.cond(when: True, run: num.u8())
+  let result = bitty.run(parser, on: <<42>>)
+  assert result == Ok(Some(42))
+}
+
+pub fn cond_false_returns_none_test() {
+  let parser = bitty.cond(when: False, run: num.u8())
+  let result = bitty.run(parser, on: <<>>)
+  assert result == Ok(None)
+}
+
+pub fn length_repeat_parses_count_then_items_test() {
+  let parser = bitty.length_repeat(num.u8(), run: num.u8())
+  let result = bitty.run(parser, on: <<3, 10, 20, 30>>)
+  assert result == Ok([10, 20, 30])
+}
+
+pub fn length_repeat_zero_count_test() {
+  let parser = bitty.length_repeat(num.u8(), run: num.u8())
+  let result = bitty.run(parser, on: <<0>>)
+  assert result == Ok([])
+}
+
+pub fn length_within_parses_count_then_window_test() {
+  let inner = {
+    use a <- bitty.then(num.u8())
+    use b_val <- bitty.then(num.u8())
+    bitty.success(#(a, b_val))
+  }
+  let parser = bitty.length_within(num.u8(), run: inner)
+  let result = bitty.run(parser, on: <<2, 0xAA, 0xBB>>)
+  assert result == Ok(#(0xAA, 0xBB))
+}
+
+pub fn length_take_parses_count_then_takes_bytes_test() {
+  let parser = bitty.length_take(num.u8())
+  let result = bitty.run(parser, on: <<3, 0xAA, 0xBB, 0xCC>>)
+  assert result == Ok(<<0xAA, 0xBB, 0xCC>>)
+}
+
+pub fn length_take_zero_length_test() {
+  let parser = bitty.length_take(num.u8())
+  let result = bitty.run(parser, on: <<0>>)
+  assert result == Ok(<<>>)
 }
