@@ -57,7 +57,13 @@ pub fn response() -> bitty.Parser(HttpResponse) {
   let body =
     bit_array.to_string(body_bytes)
     |> result.unwrap("<binary>")
-  bitty.success(HttpResponse(version:, status_code:, reason_phrase:, headers:, body:))
+  bitty.success(HttpResponse(
+    version:,
+    status_code:,
+    reason_phrase:,
+    headers:,
+    body:,
+  ))
 }
 
 fn headers() -> bitty.Parser(List(HttpHeader)) {
