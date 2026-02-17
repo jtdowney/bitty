@@ -701,7 +701,7 @@ pub fn not(parser: Parser(a)) -> Parser(Nil) {
             message: None,
           ),
           False,
-          False,
+          state.committed,
         )
       Stop(_, _, _) -> Continue(Nil, state, False)
     }
@@ -974,7 +974,16 @@ pub fn capture(parser: Parser(a)) -> Parser(BitArray) {
       Continue(_value, state1, consumed) -> {
         use <- bool.guard(
           when: state1.bit_offset != 0,
-          return: stop_expected(state1, "byte alignment after capture"),
+          return: Stop(
+            BittyError(
+              at: Location(byte: state1.byte_offset, bit: state1.bit_offset),
+              expected: ["byte alignment after capture"],
+              context: [],
+              message: None,
+            ),
+            consumed,
+            state1.committed,
+          ),
         )
         let byte_count = state1.byte_offset - state.byte_offset
         case bit_array.slice(state.input, state.byte_offset, byte_count) {

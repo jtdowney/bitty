@@ -462,3 +462,12 @@ pub fn integer_consumes_all_leading_digits_test() {
   let result = bitty.run_partial(s.integer(), on: <<"123456rest">>)
   assert result == Ok(#(123_456, <<"rest">>))
 }
+
+pub fn take_graphemes_partial_failure_blocks_backtrack_test() {
+  let parser =
+    bitty.one_of([
+      s.take_graphemes(5),
+      bitty.success("fallback"),
+    ])
+  let assert Error(_) = bitty.run(parser, on: <<"abc">>)
+}

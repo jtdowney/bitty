@@ -829,3 +829,25 @@ pub fn length_take_zero_length_test() {
   let result = bitty.run(parser, on: <<0>>)
   assert result == Ok(<<>>)
 }
+
+pub fn capture_misaligned_end_blocks_backtrack_test() {
+  let parser =
+    bitty.one_of([
+      bitty.capture(bits.uint(3)),
+      bitty.success(<<>>),
+    ])
+  let assert Error(_) = bitty.run(parser, on: <<0xFF>>)
+}
+
+pub fn not_preserves_committed_flag_test() {
+  let committed_not = {
+    use _ <- bitty.then(bitty.cut(b.tag(<<0x01>>)))
+    bitty.not(bitty.success(Nil))
+  }
+  let parser =
+    bitty.one_of([
+      committed_not,
+      bitty.success(Nil),
+    ])
+  let assert Error(_) = bitty.run(parser, on: <<0x01>>)
+}

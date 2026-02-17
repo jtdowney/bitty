@@ -9,6 +9,7 @@ import gleam/bit_array
 import gleam/bool
 import gleam/int
 import gleam/list
+import gleam/option
 import gleam/result
 import gleam/string
 
@@ -411,11 +412,19 @@ fn take_graphemes_loop(
             start,
             remaining - 1,
           )
-        Error(_) ->
-          bitty.stop_expected(
-            state,
-            int.to_string(remaining) <> " more graphemes",
+        Error(_) -> {
+          let consumed = state.byte_offset > start
+          bitty.Stop(
+            bitty.BittyError(
+              at: bitty.Location(byte: state.byte_offset, bit: state.bit_offset),
+              expected: [int.to_string(remaining) <> " more graphemes"],
+              context: [],
+              message: option.None,
+            ),
+            consumed,
+            state.committed,
           )
+        }
       }
   }
 }
