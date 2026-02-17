@@ -3,7 +3,7 @@
 [![Package Version](https://img.shields.io/hexpm/v/bitty)](https://hex.pm/packages/bitty)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/bitty/)
 
-A zero-copy binary parser combinator library for Gleam.
+A binary and string parser combinator library for Gleam that tries to be zero-copy when it can be.
 
 ## Installation
 
@@ -113,6 +113,23 @@ p.success(#(flag, value))
 
 Byte-aligned parsing is the fast path.
 Bit parsing is explicit and opt-in.
+
+## String Parsing
+
+```gleam
+import bitty as p
+import bitty/string as s
+
+pub fn request_line() -> p.Parser(#(String, String, String)) {
+  use method <- p.then(s.alpha1())
+  use _ <- p.then(s.literal(" "))
+  use path <- p.then(s.take_while1(fn(c) { c != " " }))
+  use _ <- p.then(s.literal(" "))
+  use version <- p.then(s.not_line_ending())
+
+  p.success(#(method, path, version))
+}
+```
 
 ## Error Reporting
 
