@@ -350,6 +350,12 @@ pub fn many(parser: Parser(a)) -> Parser(List(a)) {
 }
 
 /// Like `many`, but requires at least one successful match.
+///
+/// ```gleam
+/// let assert Ok(values) =
+///   bitty.run(bitty.many1(num.u8()), on: <<1, 2, 3>>)
+/// assert values == [1, 2, 3]
+/// ```
 pub fn many1(parser: Parser(a)) -> Parser(List(a)) {
   parser
   |> then(fn(first) { many(parser) |> map(fn(rest) { [first, ..rest] }) })
@@ -479,6 +485,12 @@ pub fn fold1(
 }
 
 /// Run a parser exactly `count` times, collecting results into a list.
+///
+/// ```gleam
+/// let assert Ok(values) =
+///   bitty.run(bitty.repeat(num.u8(), times: 2), on: <<1, 2, 3>>)
+/// assert values == [1, 2]
+/// ```
 pub fn repeat(parser: Parser(a), times count: Int) -> Parser(List(a)) {
   Parser(fn(state) { repeat_loop(parser, state, [], count, False) })
 }
@@ -636,6 +648,12 @@ pub fn separated1(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a))
 
 /// Try a parser, returning `Some(value)` on success or `None` if it fails
 /// without consuming input. A consuming failure still propagates.
+///
+/// ```gleam
+/// let assert Ok(value) =
+///   bitty.run(bitty.optional(num.u8()), on: <<42>>)
+/// assert value == Some(42)
+/// ```
 pub fn optional(parser: Parser(a)) -> Parser(Option(a)) {
   Parser(fn(state) {
     case parser.run(state) {
@@ -754,6 +772,10 @@ pub fn align() -> Parser(Nil) {
 
 /// Succeed only if all input has been consumed. Fails with
 /// `"end of input"` expected if bytes remain.
+///
+/// ```gleam
+/// let assert Ok(Nil) = bitty.run(bitty.end(), on: <<>>)
+/// ```
 pub fn end() -> Parser(Nil) {
   Parser(fn(state) {
     let remaining = bit_array.byte_size(state.input) - state.byte_offset

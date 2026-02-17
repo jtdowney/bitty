@@ -151,6 +151,11 @@ pub fn space1() -> bitty.Parser(String) {
 
 /// Parse zero or more whitespace characters (space, tab, `\r`, `\n`).
 /// Returns `""` when no characters match.
+///
+/// ```gleam
+/// let assert Ok(s) = bitty.run(string.multispace(), on: <<" \t\n">>)
+/// assert s == " \t\n"
+/// ```
 pub fn multispace() -> bitty.Parser(String) {
   take_while(is_multispace)
 }
@@ -281,7 +286,7 @@ fn trim_padding(s: String) -> String {
 }
 
 /// Parse a single UTF-8 grapheme and return it as a one-character string.
-/// Handles multi-byte graphemes (1–4 bytes).
+/// Handles multi-byte and multi-codepoint grapheme clusters.
 ///
 /// ```gleam
 /// let assert Ok(c) = bitty.run(string.grapheme(), on: <<"A">>)

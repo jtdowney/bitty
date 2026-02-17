@@ -142,7 +142,7 @@ pub fn tag(expected: BitArray) -> bitty.Parser(Nil) {
 ///
 /// ```gleam
 /// let parser = bytes.byte_if(fn(b) { b == <<0xFF>> })
-/// let assert Ok(value) = bitty.run(parser, on: <<0xFF, 0x00>>)
+/// let assert Ok(value) = bitty.run(parser, on: <<0xFF>>)
 /// assert value == <<0xFF>>
 /// ```
 pub fn byte_if(predicate: fn(BitArray) -> Bool) -> bitty.Parser(BitArray) {
