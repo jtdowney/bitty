@@ -1,12 +1,15 @@
 import bitty
 import dns
 import ethernet
+import gleam/bit_array
 import gleam/int
 import gleam/io
 import gleam/list
+import http
 import ipv4
 import pcap
 import simplifile
+import tcp
 import udp
 
 pub fn main() {
@@ -47,11 +50,54 @@ fn parse_ipv4(data: BitArray) {
     Ok(#(header, rest)) -> {
       io.println(ipv4.header_to_string(header))
       case header.protocol {
+        6 -> parse_tcp(rest)
         17 -> parse_udp_dns(rest)
-        _ -> io.println("  (skipping non-UDP packet)")
+        _ ->
+          io.println(
+            "  (skipping protocol " <> int.to_string(header.protocol) <> ")",
+          )
       }
     }
     Error(_) -> io.println("  Failed to parse IPv4 header")
+  }
+}
+
+fn parse_tcp(data: BitArray) {
+  case bitty.run_partial(tcp.header(), on: data) {
+    Ok(#(header, rest)) -> {
+      io.println(tcp.header_to_string(header))
+      let has_payload = bit_array.byte_size(rest) > 0
+      let has_psh = header.flags.psh
+      case has_psh && has_payload {
+        True -> parse_http(header, rest)
+        False -> Nil
+      }
+    }
+    Error(_) -> io.println("  Failed to parse TCP header")
+  }
+}
+
+fn parse_http(tcp_header: tcp.TcpHeader, data: BitArray) {
+  case tcp_header.destination_port {
+    80 ->
+      case bitty.run(http.request(), on: data) {
+        Ok(req) -> io.println(http.request_to_string(req))
+        Error(_) -> io.println("  Failed to parse HTTP request")
+      }
+    _ ->
+      case tcp_header.source_port {
+        80 ->
+          case bitty.run(http.response(), on: data) {
+            Ok(resp) -> io.println(http.response_to_string(resp))
+            Error(_) -> io.println("  Failed to parse HTTP response")
+          }
+        _ ->
+          io.println(
+            "  TCP Payload: "
+            <> int.to_string(bit_array.byte_size(data))
+            <> " bytes",
+          )
+      }
   }
 }
 
