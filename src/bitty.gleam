@@ -591,10 +591,8 @@ pub fn within_bytes(byte_len: Int, run inner: Parser(a)) -> Parser(a) {
       when: byte_len < 0,
       return: stop_expected(state, "non-negative byte length"),
     )
-    case state.bit_offset != 0 {
-      True -> stop_expected(state, "byte alignment")
-      False -> within_bytes_run(state, byte_len, inner)
-    }
+    use <- require_aligned(state)
+    within_bytes_run(state, byte_len, inner)
   })
 }
 
@@ -720,10 +718,8 @@ pub fn within_bytes_partial(
       when: byte_len < 0,
       return: stop_expected(state, "non-negative byte length"),
     )
-    case state.bit_offset != 0 {
-      True -> stop_expected(state, "byte alignment")
-      False -> within_bytes_partial_run(state, byte_len, inner)
-    }
+    use <- require_aligned(state)
+    within_bytes_partial_run(state, byte_len, inner)
   })
 }
 
@@ -852,6 +848,14 @@ pub fn stop_expected(state: State, expected: String) -> Step(a) {
     False,
     state.committed,
   )
+}
+
+@internal
+pub fn require_aligned(state: State, then continue: fn() -> Step(a)) -> Step(a) {
+  case state.bit_offset != 0 {
+    True -> stop_expected(state, "byte alignment")
+    False -> continue()
+  }
 }
 
 @internal
