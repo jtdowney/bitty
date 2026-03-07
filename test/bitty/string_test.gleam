@@ -9,12 +9,11 @@ import gleam/string
 import qcheck
 
 pub fn utf8_round_trip_test() {
-  qcheck.run(qcheck.default_config(), qcheck.non_empty_string(), fn(original) {
-    let bytes = bit_array.from_string(original)
-    let byte_len = bit_array.byte_size(bytes)
-    let result = bitty.run(s.utf8(byte_len), on: bytes)
-    assert result == Ok(original)
-  })
+  use original <- qcheck.given(qcheck.non_empty_string())
+  let bytes = bit_array.from_string(original)
+  let byte_len = bit_array.byte_size(bytes)
+  let result = bitty.run(s.utf8(byte_len), on: bytes)
+  assert result == Ok(original)
 }
 
 pub fn utf8_invalid_bytes_test() {
@@ -36,16 +35,13 @@ pub fn literal_mismatch_test() {
 }
 
 pub fn null_terminated_round_trip_test() {
-  qcheck.run(
-    qcheck.default_config(),
+  use original <- qcheck.given(
     qcheck.non_empty_string_from(qcheck.alphabetic_ascii_codepoint()),
-    fn(original) {
-      let bytes = bit_array.from_string(original)
-      let input = <<bytes:bits, 0x00>>
-      let result = bitty.run(s.null_terminated(), on: input)
-      assert result == Ok(original)
-    },
   )
+  let bytes = bit_array.from_string(original)
+  let input = <<bytes:bits, 0x00>>
+  let result = bitty.run(s.null_terminated(), on: input)
+  assert result == Ok(original)
 }
 
 pub fn null_terminated_then_more_data_test() {
@@ -62,13 +58,12 @@ pub fn null_terminated_no_null_fails_test() {
 
 pub fn fixed_round_trip_test() {
   let gen = qcheck.non_empty_string_from(qcheck.alphabetic_ascii_codepoint())
-  qcheck.run(qcheck.default_config(), gen, fn(original) {
-    let bytes = bit_array.from_string(original)
-    let byte_len = bit_array.byte_size(bytes)
-    let padded = <<bytes:bits, 0x00, 0x00, 0x00>>
-    let result = bitty.run(s.fixed(byte_len + 3), on: padded)
-    assert result == Ok(original)
-  })
+  use original <- qcheck.given(gen)
+  let bytes = bit_array.from_string(original)
+  let byte_len = bit_array.byte_size(bytes)
+  let padded = <<bytes:bits, 0x00, 0x00, 0x00>>
+  let result = bitty.run(s.fixed(byte_len + 3), on: padded)
+  assert result == Ok(original)
 }
 
 pub fn fixed_space_padded_test() {
@@ -77,13 +72,12 @@ pub fn fixed_space_padded_test() {
 }
 
 pub fn grapheme_round_trip_test() {
-  qcheck.run(qcheck.default_config(), qcheck.non_empty_string(), fn(original) {
-    let bytes = bit_array.from_string(original)
-    let parser = bitty.many(s.grapheme())
-    let assert Ok(graphemes) = bitty.run(parser, on: bytes)
-    let reassembled = string.join(graphemes, "")
-    assert reassembled == original
-  })
+  use original <- qcheck.given(qcheck.non_empty_string())
+  let bytes = bit_array.from_string(original)
+  let parser = bitty.many(s.grapheme())
+  let assert Ok(graphemes) = bitty.run(parser, on: bytes)
+  let reassembled = string.join(graphemes, "")
+  assert reassembled == original
 }
 
 pub fn grapheme_fails_on_empty_input_test() {
@@ -102,14 +96,13 @@ pub fn grapheme_if_backtrack_test() {
 }
 
 pub fn take_graphemes_round_trip_test() {
-  qcheck.run(qcheck.default_config(), qcheck.non_empty_string(), fn(original) {
-    let bytes = bit_array.from_string(original)
-    let count =
-      string.to_graphemes(original)
-      |> list.length
-    let result = bitty.run(s.take_graphemes(count), on: bytes)
-    assert result == Ok(original)
-  })
+  use original <- qcheck.given(qcheck.non_empty_string())
+  let bytes = bit_array.from_string(original)
+  let count =
+    string.to_graphemes(original)
+    |> list.length
+  let result = bitty.run(s.take_graphemes(count), on: bytes)
+  assert result == Ok(original)
 }
 
 pub fn take_graphemes_then_bytes_test() {
@@ -127,18 +120,17 @@ pub fn take_graphemes_zero_returns_empty_test() {
 }
 
 pub fn take_while_partition_test() {
-  qcheck.run(qcheck.default_config(), qcheck.non_empty_string(), fn(original) {
-    let bytes = bit_array.from_string(original)
-    let is_a = fn(c) { c == "a" }
-    let parser =
-      s.take_while(is_a)
-      |> bitty.then(fn(prefix) {
-        s.take_while(fn(_) { True })
-        |> bitty.map(fn(suffix) { prefix <> suffix })
-      })
-    let result = bitty.run(parser, on: bytes)
-    assert result == Ok(original)
-  })
+  use original <- qcheck.given(qcheck.non_empty_string())
+  let bytes = bit_array.from_string(original)
+  let is_a = fn(c) { c == "a" }
+  let parser =
+    s.take_while(is_a)
+    |> bitty.then(fn(prefix) {
+      s.take_while(fn(_) { True })
+      |> bitty.map(fn(suffix) { prefix <> suffix })
+    })
+  let result = bitty.run(parser, on: bytes)
+  assert result == Ok(original)
 }
 
 pub fn take_while1_no_match_fails_test() {
@@ -408,70 +400,62 @@ pub fn take_graphemes_partial_failure_blocks_backtrack_test() {
 }
 
 pub fn integer_round_trip_pbt_test() {
-  qcheck.run(
-    qcheck.default_config(),
-    qcheck.bounded_int(0, 999_999),
-    fn(original) {
-      let input = bit_array.from_string(int.to_string(original))
-      let result = bitty.run(s.integer(), on: input)
-      assert result == Ok(original)
-    },
-  )
+  use original <- qcheck.given(qcheck.bounded_int(0, 999_999))
+  let input = bit_array.from_string(int.to_string(original))
+  let result = bitty.run(s.integer(), on: input)
+  assert result == Ok(original)
 }
 
 pub fn alpha_classification_pbt_test() {
   let gen =
     qcheck.non_empty_string_from(qcheck.bounded_codepoint(from: 0x20, to: 0x7E))
-  qcheck.run(qcheck.default_config(), gen, fn(input) {
-    let bytes = bit_array.from_string(input)
-    let assert Ok(#(matched, _)) = bitty.run_partial(s.alpha(), on: bytes)
-    let valid =
-      string.to_graphemes(matched)
-      |> list.all(fn(c) {
-        case <<c:utf8>> {
-          <<b>> -> { b >= 0x41 && b <= 0x5A } || { b >= 0x61 && b <= 0x7A }
-          _ -> False
-        }
-      })
-    assert valid
-  })
+  use input <- qcheck.given(gen)
+  let bytes = bit_array.from_string(input)
+  let assert Ok(#(matched, _)) = bitty.run_partial(s.alpha(), on: bytes)
+  let valid =
+    string.to_graphemes(matched)
+    |> list.all(fn(c) {
+      case <<c:utf8>> {
+        <<b>> -> { b >= 0x41 && b <= 0x5A } || { b >= 0x61 && b <= 0x7A }
+        _ -> False
+      }
+    })
+  assert valid
 }
 
 pub fn digit_classification_pbt_test() {
   let gen =
     qcheck.non_empty_string_from(qcheck.bounded_codepoint(from: 0x20, to: 0x7E))
-  qcheck.run(qcheck.default_config(), gen, fn(input) {
-    let bytes = bit_array.from_string(input)
-    let assert Ok(#(matched, _)) = bitty.run_partial(s.digit(), on: bytes)
-    let valid =
-      string.to_graphemes(matched)
-      |> list.all(fn(c) {
-        case <<c:utf8>> {
-          <<b>> -> b >= 0x30 && b <= 0x39
-          _ -> False
-        }
-      })
-    assert valid
-  })
+  use input <- qcheck.given(gen)
+  let bytes = bit_array.from_string(input)
+  let assert Ok(#(matched, _)) = bitty.run_partial(s.digit(), on: bytes)
+  let valid =
+    string.to_graphemes(matched)
+    |> list.all(fn(c) {
+      case <<c:utf8>> {
+        <<b>> -> b >= 0x30 && b <= 0x39
+        _ -> False
+      }
+    })
+  assert valid
 }
 
 pub fn hex_digit_classification_pbt_test() {
   let gen =
     qcheck.non_empty_string_from(qcheck.bounded_codepoint(from: 0x20, to: 0x7E))
-  qcheck.run(qcheck.default_config(), gen, fn(input) {
-    let bytes = bit_array.from_string(input)
-    let assert Ok(#(matched, _)) = bitty.run_partial(s.hex_digit(), on: bytes)
-    let valid =
-      string.to_graphemes(matched)
-      |> list.all(fn(c) {
-        case bit_array.from_string(c) {
-          <<b>> ->
-            { b >= 0x30 && b <= 0x39 }
-            || { b >= 0x41 && b <= 0x46 }
-            || { b >= 0x61 && b <= 0x66 }
-          _ -> False
-        }
-      })
-    assert valid
-  })
+  use input <- qcheck.given(gen)
+  let bytes = bit_array.from_string(input)
+  let assert Ok(#(matched, _)) = bitty.run_partial(s.hex_digit(), on: bytes)
+  let valid =
+    string.to_graphemes(matched)
+    |> list.all(fn(c) {
+      case bit_array.from_string(c) {
+        <<b>> ->
+          { b >= 0x30 && b <= 0x39 }
+          || { b >= 0x41 && b <= 0x46 }
+          || { b >= 0x61 && b <= 0x66 }
+        _ -> False
+      }
+    })
+  assert valid
 }

@@ -7,10 +7,9 @@ import gleam/list
 import qcheck
 
 pub fn u8_reads_any_byte_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(0, 255), fn(byte) {
-    let result = bitty.run(num.u8(), on: <<byte>>)
-    assert result == Ok(byte)
-  })
+  use byte <- qcheck.given(qcheck.bounded_int(0, 255))
+  let result = bitty.run(num.u8(), on: <<byte>>)
+  assert result == Ok(byte)
 }
 
 pub fn u8_empty_input_fails_test() {
@@ -43,11 +42,10 @@ pub fn take_insufficient_input_fails_test() {
 }
 
 pub fn take_roundtrip_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(0, 64), fn(n) {
-    let bytes = build_bytes(n, <<>>)
-    let result = bitty.run(b.take(n), on: bytes)
-    assert result == Ok(bytes)
-  })
+  use n <- qcheck.given(qcheck.bounded_int(0, 64))
+  let bytes = build_bytes(n, <<>>)
+  let result = bitty.run(b.take(n), on: bytes)
+  assert result == Ok(bytes)
 }
 
 pub fn skip_advances_past_bytes_test() {
@@ -76,13 +74,12 @@ pub fn skip_exceeds_input_fails_test() {
 }
 
 pub fn skip_then_rest_partition_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(0, 32), fn(k) {
-    let total = k + 4
-    let input = build_bytes(total, <<>>)
-    let parser = b.skip(k) |> bitty.then(fn(_) { b.rest() })
-    let assert Ok(rest) = bitty.run(parser, on: input)
-    assert bit_array.byte_size(rest) == total - k
-  })
+  use k <- qcheck.given(qcheck.bounded_int(0, 32))
+  let total = k + 4
+  let input = build_bytes(total, <<>>)
+  let parser = b.skip(k) |> bitty.then(fn(_) { b.rest() })
+  let assert Ok(rest) = bitty.run(parser, on: input)
+  assert bit_array.byte_size(rest) == total - k
 }
 
 pub fn rest_returns_remaining_bytes_test() {
@@ -249,17 +246,16 @@ pub fn take_while_none_match_test() {
 pub fn take_while_all_bytes_satisfy_predicate_pbt_test() {
   let gen =
     qcheck.generic_list(qcheck.bounded_int(0, 255), qcheck.bounded_int(0, 32))
-  qcheck.run(qcheck.default_config(), gen, fn(bytes) {
-    let threshold = 128
-    let predicate = fn(byte: BitArray) {
-      let assert <<b>> = byte
-      b < threshold
-    }
-    let input = list.fold(bytes, <<>>, fn(acc, b) { <<acc:bits, b:size(8)>> })
-    let assert Ok(#(result, _)) =
-      bitty.run_partial(b.take_while(predicate), on: input)
-    assert all_bytes_below(result, threshold)
-  })
+  use bytes <- qcheck.given(gen)
+  let threshold = 128
+  let predicate = fn(byte: BitArray) {
+    let assert <<b>> = byte
+    b < threshold
+  }
+  let input = list.fold(bytes, <<>>, fn(acc, b) { <<acc:bits, b:size(8)>> })
+  let assert Ok(#(result, _)) =
+    bitty.run_partial(b.take_while(predicate), on: input)
+  assert all_bytes_below(result, threshold)
 }
 
 pub fn take_while_empty_test() {

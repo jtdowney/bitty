@@ -12,20 +12,18 @@ pub fn main() -> Nil {
 }
 
 pub fn success_run_returns_value_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(-1000, 1000), fn(x) {
-    let result = bitty.success(x) |> bitty.run(<<>>)
-    assert result == Ok(x)
-  })
+  use x <- qcheck.given(qcheck.bounded_int(-1000, 1000))
+  let result = bitty.success(x) |> bitty.run(<<>>)
+  assert result == Ok(x)
 }
 
 pub fn success_run_partial_returns_value_and_remainder_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(-1000, 1000), fn(x) {
-    let with_trailing = bitty.success(x) |> bitty.run_partial(<<1, 2, 3>>)
-    assert with_trailing == Ok(#(x, <<1, 2, 3>>))
+  use x <- qcheck.given(qcheck.bounded_int(-1000, 1000))
+  let with_trailing = bitty.success(x) |> bitty.run_partial(<<1, 2, 3>>)
+  assert with_trailing == Ok(#(x, <<1, 2, 3>>))
 
-    let empty = bitty.success(x) |> bitty.run_partial(<<>>)
-    assert empty == Ok(#(x, <<>>))
-  })
+  let empty = bitty.success(x) |> bitty.run_partial(<<>>)
+  assert empty == Ok(#(x, <<>>))
 }
 
 pub fn run_partial_after_bits_preserves_partial_byte_test() {
@@ -76,16 +74,15 @@ pub fn run_with_location_empty_input_test() {
 }
 
 pub fn fail_run_returns_error_test() {
-  qcheck.run(qcheck.default_config(), qcheck.string(), fn(msg) {
-    let result = bitty.fail(msg) |> bitty.run(<<>>)
-    assert result
-      == Error(bitty.BittyError(
-        at: bitty.Location(byte: 0, bit: 0),
-        expected: [],
-        context: [],
-        message: Some(msg),
-      ))
-  })
+  use msg <- qcheck.given(qcheck.string())
+  let result = bitty.fail(msg) |> bitty.run(<<>>)
+  assert result
+    == Error(bitty.BittyError(
+      at: bitty.Location(byte: 0, bit: 0),
+      expected: [],
+      context: [],
+      message: Some(msg),
+    ))
 }
 
 pub fn run_unconsumed_input_error_test() {
@@ -100,21 +97,18 @@ pub fn run_unconsumed_input_error_test() {
 }
 
 pub fn map_transforms_value_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(-1000, 1000), fn(x) {
-    let result =
-      bitty.success(x) |> bitty.map(fn(v) { v * 2 }) |> bitty.run(<<>>)
-    assert result == Ok(x * 2)
-  })
+  use x <- qcheck.given(qcheck.bounded_int(-1000, 1000))
+  let result = bitty.success(x) |> bitty.map(fn(v) { v * 2 }) |> bitty.run(<<>>)
+  assert result == Ok(x * 2)
 }
 
 pub fn then_chains_parsers_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(-1000, 1000), fn(x) {
-    let result =
-      bitty.success(x)
-      |> bitty.then(fn(v) { bitty.success(v + 5) })
-      |> bitty.run(<<>>)
-    assert result == Ok(x + 5)
-  })
+  use x <- qcheck.given(qcheck.bounded_int(-1000, 1000))
+  let result =
+    bitty.success(x)
+    |> bitty.then(fn(v) { bitty.success(v + 5) })
+    |> bitty.run(<<>>)
+  assert result == Ok(x + 5)
 }
 
 pub fn then_propagates_failure_test() {

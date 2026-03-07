@@ -4,14 +4,13 @@ import bitty/num
 import qcheck
 
 pub fn u16_endian_round_trip_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(0, 65_535), fn(val) {
-    let b0 = val / 256
-    let b1 = val % 256
-    let be_result = bitty.run(num.u16(num.BigEndian), on: <<b0, b1>>)
-    let le_result = bitty.run(num.u16(num.LittleEndian), on: <<b1, b0>>)
-    assert be_result == Ok(val)
-    assert le_result == Ok(val)
-  })
+  use val <- qcheck.given(qcheck.bounded_int(0, 65_535))
+  let b0 = val / 256
+  let b1 = val % 256
+  let be_result = bitty.run(num.u16(num.BigEndian), on: <<b0, b1>>)
+  let le_result = bitty.run(num.u16(num.LittleEndian), on: <<b1, b0>>)
+  assert be_result == Ok(val)
+  assert le_result == Ok(val)
 }
 
 pub fn u16_insufficient_input_fails_test() {
@@ -19,21 +18,15 @@ pub fn u16_insufficient_input_fails_test() {
 }
 
 pub fn u32_endian_round_trip_test() {
-  qcheck.run(
-    qcheck.default_config(),
-    qcheck.bounded_int(0, 4_294_967_295),
-    fn(val) {
-      let b0 = val / 16_777_216
-      let b1 = val % 16_777_216 / 65_536
-      let b2 = val % 65_536 / 256
-      let b3 = val % 256
-      let be_result = bitty.run(num.u32(num.BigEndian), on: <<b0, b1, b2, b3>>)
-      let le_result =
-        bitty.run(num.u32(num.LittleEndian), on: <<b3, b2, b1, b0>>)
-      assert be_result == Ok(val)
-      assert le_result == Ok(val)
-    },
-  )
+  use val <- qcheck.given(qcheck.bounded_int(0, 4_294_967_295))
+  let b0 = val / 16_777_216
+  let b1 = val % 16_777_216 / 65_536
+  let b2 = val % 65_536 / 256
+  let b3 = val % 256
+  let be_result = bitty.run(num.u32(num.BigEndian), on: <<b0, b1, b2, b3>>)
+  let le_result = bitty.run(num.u32(num.LittleEndian), on: <<b3, b2, b1, b0>>)
+  assert be_result == Ok(val)
+  assert le_result == Ok(val)
 }
 
 pub fn u32_insufficient_input_fails_test() {
@@ -42,55 +35,43 @@ pub fn u32_insufficient_input_fails_test() {
 }
 
 pub fn i8_roundtrip_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(-128, 127), fn(val) {
-    let byte = case val < 0 {
-      True -> val + 256
-      False -> val
-    }
-    let result = bitty.run(num.i8(), on: <<byte>>)
-    assert result == Ok(val)
-  })
+  use val <- qcheck.given(qcheck.bounded_int(-128, 127))
+  let byte = case val < 0 {
+    True -> val + 256
+    False -> val
+  }
+  let result = bitty.run(num.i8(), on: <<byte>>)
+  assert result == Ok(val)
 }
 
 pub fn i16_endian_roundtrip_test() {
-  qcheck.run(
-    qcheck.default_config(),
-    qcheck.bounded_int(-32_768, 32_767),
-    fn(val) {
-      let unsigned = case val < 0 {
-        True -> val + 65_536
-        False -> val
-      }
-      let b0 = unsigned / 256
-      let b1 = unsigned % 256
-      let be_result = bitty.run(num.i16(num.BigEndian), on: <<b0, b1>>)
-      let le_result = bitty.run(num.i16(num.LittleEndian), on: <<b1, b0>>)
-      assert be_result == Ok(val)
-      assert le_result == Ok(val)
-    },
-  )
+  use val <- qcheck.given(qcheck.bounded_int(-32_768, 32_767))
+  let unsigned = case val < 0 {
+    True -> val + 65_536
+    False -> val
+  }
+  let b0 = unsigned / 256
+  let b1 = unsigned % 256
+  let be_result = bitty.run(num.i16(num.BigEndian), on: <<b0, b1>>)
+  let le_result = bitty.run(num.i16(num.LittleEndian), on: <<b1, b0>>)
+  assert be_result == Ok(val)
+  assert le_result == Ok(val)
 }
 
 pub fn i32_endian_roundtrip_test() {
-  qcheck.run(
-    qcheck.default_config(),
-    qcheck.bounded_int(-2_147_483_648, 2_147_483_647),
-    fn(val) {
-      let unsigned = case val < 0 {
-        True -> val + 4_294_967_296
-        False -> val
-      }
-      let b0 = unsigned / 16_777_216
-      let b1 = unsigned % 16_777_216 / 65_536
-      let b2 = unsigned % 65_536 / 256
-      let b3 = unsigned % 256
-      let be_result = bitty.run(num.i32(num.BigEndian), on: <<b0, b1, b2, b3>>)
-      let le_result =
-        bitty.run(num.i32(num.LittleEndian), on: <<b3, b2, b1, b0>>)
-      assert be_result == Ok(val)
-      assert le_result == Ok(val)
-    },
-  )
+  use val <- qcheck.given(qcheck.bounded_int(-2_147_483_648, 2_147_483_647))
+  let unsigned = case val < 0 {
+    True -> val + 4_294_967_296
+    False -> val
+  }
+  let b0 = unsigned / 16_777_216
+  let b1 = unsigned % 16_777_216 / 65_536
+  let b2 = unsigned % 65_536 / 256
+  let b3 = unsigned % 256
+  let be_result = bitty.run(num.i32(num.BigEndian), on: <<b0, b1, b2, b3>>)
+  let le_result = bitty.run(num.i32(num.LittleEndian), on: <<b3, b2, b1, b0>>)
+  assert be_result == Ok(val)
+  assert le_result == Ok(val)
 }
 
 pub fn u64_be_test() {

@@ -42,13 +42,12 @@ pub fn uint_negative_bits_fails_test() {
 }
 
 pub fn uint_various_widths_test() {
-  qcheck.run(qcheck.default_config(), qcheck.bounded_int(1, 8), fn(width) {
-    let max_val = int.bitwise_shift_left(1, width) - 1
-    let byte = int.bitwise_shift_left(max_val, 8 - width)
-    let assert Ok(#(value, _rest)) =
-      bitty.run_partial(bits.uint(width), on: <<byte>>)
-    assert value == max_val
-  })
+  use width <- qcheck.given(qcheck.bounded_int(1, 8))
+  let max_val = int.bitwise_shift_left(1, width) - 1
+  let byte = int.bitwise_shift_left(max_val, 8 - width)
+  let assert Ok(#(value, _rest)) =
+    bitty.run_partial(bits.uint(width), on: <<byte>>)
+  assert value == max_val
 }
 
 pub fn uint_36bits_test() {
