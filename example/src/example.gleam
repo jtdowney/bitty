@@ -26,14 +26,14 @@ pub fn main() {
     <> " packets",
   )
 
-  list.index_map(pcap_file.packets, fn(pkt, i) {
+  list.index_map(pcap_file.packets, fn(packet, i) {
     io.println("\n=== Packet " <> int.to_string(i + 1) <> " ===")
-    parse_packet(pkt)
+    parse_packet(packet)
   })
 }
 
-fn parse_packet(pkt: pcap.PcapPacket) {
-  case bitty.run(ethernet.frame(), on: pkt.data) {
+fn parse_packet(packet: pcap.PcapPacket) {
+  case bitty.run(ethernet.frame(), on: packet.data) {
     Ok(frame) -> {
       io.println(ethernet.frame_to_string(frame))
       case frame.ethertype {
