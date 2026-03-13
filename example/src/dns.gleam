@@ -50,7 +50,10 @@ pub type DnsMessage {
 
 pub fn message() -> bitty.Parser(DnsMessage) {
   use dns_header <- bitty.then(header())
-  use questions <- bitty.then(bitty.repeat(question(), times: dns_header.qd_count))
+  use questions <- bitty.then(bitty.repeat(
+    question(),
+    times: dns_header.qd_count,
+  ))
   use answers <- bitty.then(bitty.repeat(record(), times: dns_header.an_count))
   bitty.success(DnsMessage(header: dns_header, questions:, answers:))
 }
