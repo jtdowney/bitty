@@ -539,10 +539,10 @@ pub fn length_repeat(
 /// only the parser's value.
 ///
 /// ```gleam
-/// use value <- bitty.then(bitty.preceded(bytes.tag(<<0x00>>), num.u8()))
+/// use value <- bitty.then(bitty.preceded(bytes.tag(<<0x00>>), then: num.u8()))
 /// bitty.success(value)
 /// ```
-pub fn preceded(prefix: Parser(a), parser: Parser(b)) -> Parser(b) {
+pub fn preceded(prefix: Parser(a), then parser: Parser(b)) -> Parser(b) {
   prefix |> then(fn(_) { parser })
 }
 
@@ -562,28 +562,28 @@ pub fn terminated(parser: Parser(a), suffix: Parser(b)) -> Parser(a) {
 /// ```gleam
 /// let parser = bitty.delimited(
 ///   bytes.tag(<<0x28>>),
-///   num.u8(),
-///   bytes.tag(<<0x29>>),
+///   run: num.u8(),
+///   close: bytes.tag(<<0x29>>),
 /// )
 /// let assert Ok(value) = bitty.run(parser, on: <<0x28, 42, 0x29>>)
 /// assert value == 42
 /// ```
 pub fn delimited(
   open: Parser(a),
-  parser: Parser(b),
-  close: Parser(c),
+  run parser: Parser(b),
+  close close: Parser(c),
 ) -> Parser(b) {
-  preceded(open, terminated(parser, close))
+  preceded(open, then: terminated(parser, close))
 }
 
 /// Run two parsers in sequence and return their results as a tuple.
 ///
 /// ```gleam
-/// let parser = bitty.pair(num.u8(), num.u8())
+/// let parser = bitty.pair(num.u8(), and: num.u8())
 /// let assert Ok(value) = bitty.run(parser, on: <<1, 2>>)
 /// assert value == #(1, 2)
 /// ```
-pub fn pair(first: Parser(a), second: Parser(b)) -> Parser(#(a, b)) {
+pub fn pair(first: Parser(a), and second: Parser(b)) -> Parser(#(a, b)) {
   first |> then(fn(a) { second |> map(fn(b) { #(a, b) }) })
 }
 
@@ -603,7 +603,8 @@ pub fn separated_pair(
   by separator: Parser(b),
   then second: Parser(c),
 ) -> Parser(#(a, c)) {
-  first |> then(fn(a) { preceded(separator, second) |> map(fn(c) { #(a, c) }) })
+  first
+  |> then(fn(a) { preceded(separator, then: second) |> map(fn(c) { #(a, c) }) })
 }
 
 /// Parse zero or more occurrences of `parser` separated by `separator`.
@@ -641,7 +642,7 @@ pub fn separated(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a)) 
 pub fn separated1(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a)) {
   parser
   |> then(fn(first) {
-    many(attempt(preceded(separator, parser)))
+    many(attempt(preceded(separator, then: parser)))
     |> map(fn(rest) { [first, ..rest] })
   })
 }

@@ -3,7 +3,6 @@ name: test
 on:
   push:
     branches:
-      - master
       - main
   pull_request:
 
@@ -24,7 +23,7 @@ jobs:
       - run: gleam test
       - run: gleam test --target javascript
       - run: gleam format --check src test
-      - name: Build examples
+      - name: build examples
         working-directory: example
         run: |
           gleam deps download

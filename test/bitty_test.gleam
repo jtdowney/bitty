@@ -419,13 +419,13 @@ pub fn within_bytes_partial_full_consumption_test() {
 }
 
 pub fn preceded_discards_prefix_test() {
-  let parser = bitty.preceded(b.tag(<<0x00>>), num.u8())
+  let parser = bitty.preceded(b.tag(<<0x00>>), then: num.u8())
   let result = bitty.run(parser, on: <<0x00, 0x42>>)
   assert result == Ok(0x42)
 }
 
 pub fn preceded_prefix_failure_propagates_test() {
-  let parser = bitty.preceded(b.tag(<<0xFF>>), num.u8())
+  let parser = bitty.preceded(b.tag(<<0xFF>>), then: num.u8())
   let assert Error(_) = bitty.run(parser, on: <<0x00, 0x42>>)
 }
 
@@ -441,34 +441,37 @@ pub fn terminated_suffix_failure_propagates_test() {
 }
 
 pub fn delimited_returns_inner_value_test() {
-  let parser = bitty.delimited(b.tag(<<0x28>>), num.u8(), b.tag(<<0x29>>))
+  let parser =
+    bitty.delimited(b.tag(<<0x28>>), run: num.u8(), close: b.tag(<<0x29>>))
   let result = bitty.run(parser, on: <<0x28, 0x42, 0x29>>)
   assert result == Ok(0x42)
 }
 
 pub fn delimited_open_failure_propagates_test() {
-  let parser = bitty.delimited(b.tag(<<0x28>>), num.u8(), b.tag(<<0x29>>))
+  let parser =
+    bitty.delimited(b.tag(<<0x28>>), run: num.u8(), close: b.tag(<<0x29>>))
   let assert Error(_) = bitty.run(parser, on: <<0xFF, 0x42, 0x29>>)
 }
 
 pub fn delimited_close_failure_propagates_test() {
-  let parser = bitty.delimited(b.tag(<<0x28>>), num.u8(), b.tag(<<0x29>>))
+  let parser =
+    bitty.delimited(b.tag(<<0x28>>), run: num.u8(), close: b.tag(<<0x29>>))
   let assert Error(_) = bitty.run(parser, on: <<0x28, 0x42, 0xFF>>)
 }
 
 pub fn pair_returns_tuple_test() {
-  let parser = bitty.pair(num.u8(), num.u8())
+  let parser = bitty.pair(num.u8(), and: num.u8())
   let result = bitty.run(parser, on: <<1, 2>>)
   assert result == Ok(#(1, 2))
 }
 
 pub fn pair_first_failure_propagates_test() {
-  let parser = bitty.pair(num.u8(), num.u8())
+  let parser = bitty.pair(num.u8(), and: num.u8())
   let assert Error(_) = bitty.run(parser, on: <<>>)
 }
 
 pub fn pair_second_failure_propagates_test() {
-  let parser = bitty.pair(num.u8(), num.u8())
+  let parser = bitty.pair(num.u8(), and: num.u8())
   let assert Error(_) = bitty.run(parser, on: <<1>>)
 }
 
