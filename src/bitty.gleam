@@ -146,7 +146,10 @@ pub fn run_with_location(
   Ok(#(value, loc, remaining_slice(final_state)))
 }
 
-fn do_run(parser: Parser(a), input: BitArray) -> Result(#(a, State), BittyError) {
+fn do_run(
+  parser: Parser(a),
+  input: BitArray,
+) -> Result(#(a, State), BittyError) {
   let state = new_state(input)
   case parser.run(state) {
     Continue(value, final_state, _consumed) -> Ok(#(value, final_state))
@@ -621,7 +624,10 @@ pub fn separated_pair(
 /// let assert Ok(values) = bitty.run(parser, on: <<1, 0x2C, 2, 0x2C, 3>>)
 /// assert values == [1, 2, 3]
 /// ```
-pub fn separated(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a)) {
+pub fn separated(
+  parser: Parser(a),
+  by separator: Parser(b),
+) -> Parser(List(a)) {
   one_of([
     separated1(parser, by: separator),
     success([]),
@@ -639,7 +645,10 @@ pub fn separated(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a)) 
 /// let assert Ok(values) = bitty.run(parser, on: <<1, 0x2C, 2, 0x2C, 3>>)
 /// assert values == [1, 2, 3]
 /// ```
-pub fn separated1(parser: Parser(a), by separator: Parser(b)) -> Parser(List(a)) {
+pub fn separated1(
+  parser: Parser(a),
+  by separator: Parser(b),
+) -> Parser(List(a)) {
   parser
   |> then(fn(first) {
     many(attempt(preceded(separator, then: parser)))
@@ -1156,7 +1165,10 @@ pub fn stop_expected(state: State, expected: String) -> Step(a) {
 }
 
 @internal
-pub fn require_aligned(state: State, then continue: fn() -> Step(a)) -> Step(a) {
+pub fn require_aligned(
+  state: State,
+  then continue: fn() -> Step(a),
+) -> Step(a) {
   case state.bit_offset != 0 {
     True -> stop_expected(state, "byte alignment")
     False -> continue()

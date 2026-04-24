@@ -340,7 +340,10 @@ fn utf8_byte_len(lead_byte: Int) -> Result(Int, Nil) {
   }
 }
 
-fn decode_codepoint(input: BitArray, offset: Int) -> Result(#(String, Int), Nil) {
+fn decode_codepoint(
+  input: BitArray,
+  offset: Int,
+) -> Result(#(String, Int), Nil) {
   use lead <- result.try(peek_lead_byte(input, offset))
   use len <- result.try(utf8_byte_len(lead))
   use bytes <- result.try(bit_array.slice(input, offset, len))
@@ -348,7 +351,10 @@ fn decode_codepoint(input: BitArray, offset: Int) -> Result(#(String, Int), Nil)
   Ok(#(s, len))
 }
 
-fn decode_grapheme(input: BitArray, offset: Int) -> Result(#(String, Int), Nil) {
+fn decode_grapheme(
+  input: BitArray,
+  offset: Int,
+) -> Result(#(String, Int), Nil) {
   use #(_, first_len) <- result.try(decode_codepoint(input, offset))
   extend_grapheme(input, offset, offset + first_len)
 }
