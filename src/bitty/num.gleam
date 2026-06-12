@@ -6,7 +6,7 @@ import bitty
 import gleam/bit_array
 import gleam/bool
 import gleam/int
-import gleam/option.{None}
+import gleam/option
 
 /// Byte order for multi-byte numeric parsers.
 pub type Endian {
@@ -16,27 +16,12 @@ pub type Endian {
 
 /// Parse a single byte as an unsigned integer (0–255).
 pub fn u8() -> bitty.Parser(Int) {
-  bitty.make_parser(fn(state: bitty.State) {
-    case bitty.read_n_bytes(state, 1) {
-      bitty.Continue(<<byte>>, new_state, consumed) ->
-        bitty.Continue(byte, new_state, consumed)
-      bitty.Continue(_, new_state, _) ->
-        bitty.stop_expected(new_state, "a byte")
-      bitty.Stop(error, consumed, committed) ->
-        bitty.Stop(error, consumed, committed)
-    }
-  })
+  fixed_int(1, BigEndian, Unsigned)
 }
 
 /// Parse a single byte as a signed integer (-128–127).
 pub fn i8() -> bitty.Parser(Int) {
-  u8()
-  |> bitty.map(fn(unsigned) {
-    case unsigned >= 128 {
-      True -> unsigned - 256
-      False -> unsigned
-    }
-  })
+  fixed_int(1, BigEndian, Signed)
 }
 
 /// Parse a 16-bit unsigned integer with the given endianness.
@@ -47,137 +32,105 @@ pub fn i8() -> bitty.Parser(Int) {
 /// assert val == 256
 /// ```
 pub fn u16(endian: Endian) -> bitty.Parser(Int) {
-  bitty.make_parser(fn(state: bitty.State) {
-    case bitty.read_n_bytes(state, 2) {
-      bitty.Continue(<<b0, b1>>, new_state, consumed) -> {
-        let value = case endian {
-          BigEndian -> b0 * 256 + b1
-          LittleEndian -> b1 * 256 + b0
-        }
-        bitty.Continue(value, new_state, consumed)
-      }
-      bitty.Continue(_, _, _) -> bitty.stop_expected(state, "2 bytes")
-      bitty.Stop(error, consumed, committed) ->
-        bitty.Stop(error, consumed, committed)
-    }
-  })
+  fixed_int(2, endian, Unsigned)
 }
 
 /// Parse a 32-bit unsigned integer with the given endianness.
 pub fn u32(endian: Endian) -> bitty.Parser(Int) {
-  bitty.make_parser(fn(state: bitty.State) {
-    case bitty.read_n_bytes(state, 4) {
-      bitty.Continue(<<b0, b1, b2, b3>>, new_state, consumed) -> {
-        let value = case endian {
-          BigEndian -> b0 * 16_777_216 + b1 * 65_536 + b2 * 256 + b3
-          LittleEndian -> b3 * 16_777_216 + b2 * 65_536 + b1 * 256 + b0
-        }
-        bitty.Continue(value, new_state, consumed)
-      }
-      bitty.Continue(_, _, _) -> bitty.stop_expected(state, "4 bytes")
-      bitty.Stop(error, consumed, committed) ->
-        bitty.Stop(error, consumed, committed)
-    }
-  })
+  fixed_int(4, endian, Unsigned)
 }
 
 /// Parse a 16-bit signed integer (two's complement) with the given endianness.
 pub fn i16(endian: Endian) -> bitty.Parser(Int) {
-  u16(endian)
-  |> bitty.map(fn(unsigned) {
-    case unsigned >= 32_768 {
-      True -> unsigned - 65_536
-      False -> unsigned
-    }
-  })
+  fixed_int(2, endian, Signed)
 }
 
 /// Parse a 32-bit signed integer (two's complement) with the given endianness.
 pub fn i32(endian: Endian) -> bitty.Parser(Int) {
-  u32(endian)
-  |> bitty.map(fn(unsigned) {
-    case unsigned >= 2_147_483_648 {
-      True -> unsigned - 4_294_967_296
-      False -> unsigned
-    }
-  })
+  fixed_int(4, endian, Signed)
 }
 
 /// Parse a 64-bit unsigned integer with the given endianness.
 /// On the JavaScript target, values above 2^53 - 1 (9,007,199,254,740,991)
 /// may lose precision due to IEEE 754 double-precision limitations.
 pub fn u64(endian: Endian) -> bitty.Parser(Int) {
-  bitty.make_parser(fn(state: bitty.State) {
-    case bitty.read_n_bytes(state, 8) {
-      bitty.Continue(<<b0, b1, b2, b3, b4, b5, b6, b7>>, new_state, consumed) -> {
-        let #(hi, lo) = case endian {
-          BigEndian -> #(
-            b0 * 16_777_216 + b1 * 65_536 + b2 * 256 + b3,
-            b4 * 16_777_216 + b5 * 65_536 + b6 * 256 + b7,
-          )
-          LittleEndian -> #(
-            b7 * 16_777_216 + b6 * 65_536 + b5 * 256 + b4,
-            b3 * 16_777_216 + b2 * 65_536 + b1 * 256 + b0,
-          )
-        }
-        bitty.Continue(hi * 4_294_967_296 + lo, new_state, consumed)
-      }
-      bitty.Continue(_, _, _) -> bitty.stop_expected(state, "8 bytes")
-      bitty.Stop(error, consumed, committed) ->
-        bitty.Stop(error, consumed, committed)
-    }
-  })
+  fixed_int(8, endian, Unsigned)
 }
 
 /// Parse a 64-bit signed integer (two's complement) with the given endianness.
 /// On the JavaScript target, values outside the safe integer range
 /// (-2^53 + 1 to 2^53 - 1) may lose precision.
 pub fn i64(endian: Endian) -> bitty.Parser(Int) {
-  u64(endian)
-  |> bitty.map(fn(unsigned) {
-    case unsigned >= 9_223_372_036_854_775_808 {
-      True -> unsigned - 18_446_744_073_709_551_616
-      False -> unsigned
-    }
-  })
+  fixed_int(8, endian, Signed)
 }
 
 /// Parse a 32-bit IEEE 754 float with the given endianness.
 pub fn f32(endian: Endian) -> bitty.Parser(Float) {
-  bitty.make_parser(fn(state: bitty.State) {
-    case bitty.read_n_bytes(state, 4) {
-      bitty.Continue(<<b0, b1, b2, b3>>, new_state, consumed) -> {
-        let ordered = case endian {
-          BigEndian -> <<b0, b1, b2, b3>>
-          LittleEndian -> <<b3, b2, b1, b0>>
-        }
-        case ordered {
-          <<value:float-size(32)>> -> bitty.Continue(value, new_state, consumed)
-          _ -> bitty.stop_expected(state, "valid f32")
-        }
-      }
-      bitty.Continue(_, _, _) -> bitty.stop_expected(state, "4 bytes")
-      bitty.Stop(error, consumed, committed) ->
-        bitty.Stop(error, consumed, committed)
-    }
-  })
+  fixed_size(4, decode_f32(_, endian))
 }
 
 /// Parse a 64-bit IEEE 754 double with the given endianness.
 pub fn f64(endian: Endian) -> bitty.Parser(Float) {
+  fixed_size(8, decode_f64(_, endian))
+}
+
+type Signedness {
+  Signed
+  Unsigned
+}
+
+fn fixed_int(
+  count: Int,
+  endian: Endian,
+  signedness: Signedness,
+) -> bitty.Parser(Int) {
+  let bits = count * 8
+  fixed_size(count, decode_int(_, bits, endian, signedness))
+}
+
+fn decode_int(
+  raw: BitArray,
+  bits: Int,
+  endian: Endian,
+  signedness: Signedness,
+) -> Result(Int, Nil) {
+  case endian, signedness, raw {
+    BigEndian, Unsigned, <<value:unsigned-big-size(bits)>> -> Ok(value)
+    BigEndian, Signed, <<value:signed-big-size(bits)>> -> Ok(value)
+    LittleEndian, Unsigned, <<value:unsigned-little-size(bits)>> -> Ok(value)
+    LittleEndian, Signed, <<value:signed-little-size(bits)>> -> Ok(value)
+    _, _, _ -> Error(Nil)
+  }
+}
+
+fn decode_f32(raw: BitArray, endian: Endian) -> Result(Float, Nil) {
+  case endian, raw {
+    BigEndian, <<value:float-big-size(32)>> -> Ok(value)
+    LittleEndian, <<value:float-little-size(32)>> -> Ok(value)
+    _, _ -> Error(Nil)
+  }
+}
+
+fn decode_f64(raw: BitArray, endian: Endian) -> Result(Float, Nil) {
+  case endian, raw {
+    BigEndian, <<value:float-big-size(64)>> -> Ok(value)
+    LittleEndian, <<value:float-little-size(64)>> -> Ok(value)
+    _, _ -> Error(Nil)
+  }
+}
+
+fn fixed_size(
+  count: Int,
+  decode: fn(BitArray) -> Result(a, Nil),
+) -> bitty.Parser(a) {
   bitty.make_parser(fn(state: bitty.State) {
-    case bitty.read_n_bytes(state, 8) {
-      bitty.Continue(<<b0, b1, b2, b3, b4, b5, b6, b7>>, new_state, consumed) -> {
-        let ordered = case endian {
-          BigEndian -> <<b0, b1, b2, b3, b4, b5, b6, b7>>
-          LittleEndian -> <<b7, b6, b5, b4, b3, b2, b1, b0>>
+    case bitty.read_n_bytes(state, count) {
+      bitty.Continue(raw, new_state, consumed) ->
+        case decode(raw) {
+          Ok(value) -> bitty.Continue(value, new_state, consumed)
+          Error(Nil) ->
+            bitty.stop_expected(state, int.to_string(count) <> " bytes")
         }
-        case ordered {
-          <<value:float>> -> bitty.Continue(value, new_state, consumed)
-          _ -> bitty.stop_expected(state, "valid f64")
-        }
-      }
-      bitty.Continue(_, _, _) -> bitty.stop_expected(state, "8 bytes")
       bitty.Stop(error, consumed, committed) ->
         bitty.Stop(error, consumed, committed)
     }
@@ -258,7 +211,7 @@ fn varint_overflow(state: bitty.State, expected: String) -> bitty.Step(a) {
       at: bitty.Location(byte: state.byte_offset, bit: state.bit_offset),
       expected: [expected],
       context: [],
-      message: None,
+      message: option.None,
     ),
     True,
     state.committed,
