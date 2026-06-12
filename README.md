@@ -5,6 +5,11 @@
 
 A binary and string parser combinator library for Gleam that tries to be zero-copy when it can be.
 
+> [!IMPORTANT]
+> You probably don't want this library. Gleam already has excellent parsing capabilities with
+> features like bit arrays and pattern matching. For strings the excellent [splitter](https://splitter.hexdocs.pm/)
+> library can be very useful.
+
 ## Installation
 
 ```sh
